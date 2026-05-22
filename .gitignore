@@ -222,3 +222,6 @@ __marimo__/
 tmp
 ___*
 
+data/*
+!data/.gitkeep
+!AGENTS.md

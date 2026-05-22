@@ -4,14 +4,14 @@ For each of the items below we must define the programming patterns to use, impl
 
 ## config loading
 
-- it should read in a yaml config from `config/settings.yaml` with the following format into a pydandic object
+- it should read in a yaml config from `config/settings.yaml` with the following format into a Pydantic object
 
 ```yaml
 storage: /path/to/root/store
 
 sources:
-- name: <cannonical name>
-  url: <rtsp stream url|path-on-disk>
+- name: <canonical name>
+  uri: <rtsp stream uri|path-on-disk uri>
   write: bool
 ```
 
@@ -32,4 +32,3 @@ sources:
 
 - it should be able to preprocess the video by adjusting resolution
 - it should be able to preprocess the video by adjusting the size
-

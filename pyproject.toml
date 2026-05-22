@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Cereal command-line tool"
 requires-python = ">=3.14"
 dependencies = [
-    "pydantic-settings>=2.14.1",
+    "pydantic-settings[yaml]>=2.14.1",
 ]
 
 [project.scripts]
