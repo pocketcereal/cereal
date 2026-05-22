@@ -1,0 +1,43 @@
+[project]
+name = "cereal"
+version = "0.1.0"
+description = "Cereal command-line tool"
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic-settings>=2.14.1",
+]
+
+[project.scripts]
+cereal = "cereal.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.9,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.14",
+    "ty>=0.0.38",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",
+    "D203",
+    "D213",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.src]
+include = ["src", "tests"]

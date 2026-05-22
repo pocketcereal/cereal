@@ -1,0 +1,1 @@
+"""Cereal command-line package."""
