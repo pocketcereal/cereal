@@ -64,6 +64,14 @@ _Avoid_: Camera name, device path, port
 A single video frame from a **Source** at runtime.
 _Avoid_: OpenCV frame, PyAV frame, image
 
+**Frame writer**:
+The runtime component that writes **Frames** into a **Recording artifact**.
+_Avoid_: Sink, recorder, output handler
+
+**Writer context**:
+The injected runtime value that carries Cereal's recording defaults for creating a **Frame writer**.
+_Avoid_: Recording config, writer settings, output profile
+
 **Preview window**:
 A lightweight local desktop window used to display frames from one **Source** during development and manual verification.
 _Avoid_: Browser view, VLC output, production monitor
@@ -75,6 +83,10 @@ _Avoid_: Output policy, recording profile
 **Storage root**:
 The required root directory where Cereal writes files it owns.
 _Avoid_: Source path, config path, cache path
+
+**Recording artifact**:
+A video file Cereal writes for one recorded **Source** run.
+_Avoid_: Output file, capture file, export
 
 ## Relationships
 
@@ -89,6 +101,8 @@ _Avoid_: Source path, config path, cache path
 - Each **Source** has one **Source name** and may have one **Source label**.
 - A **Source adapter** resolves a **Source URI** for one or more supported URI schemes.
 - A **Source adapter** reads **Frames** from a **Source**; the concrete in-memory representation is an implementation detail for now.
+- A **Frame writer** writes **Frames** from one **Source** into one **Recording artifact**.
+- A **Writer context** provides the default recording values needed to create a **Frame writer**.
 - Cereal selects a **Source adapter** through the **Source adapter registry** from the **Source URI** scheme, not from a separate source type field.
 - A **Capture device** uses the `device:` **Source URI** scheme.
 - In the first **Capture device** phase, `device:` **Source URI** values identify a **Device index**, such as `device:0`.
@@ -101,7 +115,17 @@ _Avoid_: Source path, config path, cache path
 - In the first media phase, the **CLI command** previews only the first configured **Source**.
 - In the first **Capture device** phase, Cereal proves `device:` support through the existing first-**Source** **Preview window** path.
 - Each **Source** may set one **Write flag**; omitted means Cereal does not record that **Source**.
+- In the first recording phase, Cereal records only the first configured **Source** while the existing **Preview window** path is running and only when that **Source** has `write: true`.
 - The **Configuration file** defines exactly one **Storage root**, and Cereal derives owned child paths under it.
+- In the first recording phase, a **Recording artifact** is one `.mp4` file under `Storage root / Source name / date / Unix timestamp`.
+- Cereal creates owned directories for **Recording artifacts** under **Storage root** as needed.
+- **Recording artifact** path derivation is pure and receives **Storage root**, **Source name**, and an injected timestamp.
+- In the first recording phase, recording format details use Cereal-owned prototype defaults and are not configurable.
+- The first recording defaults write `.mp4` artifacts through ffmpeg with `libx264`, a silent AAC track, MP4 v2 branding, BT.709 color metadata, and no B-frames for local player compatibility.
+- In the first recording phase, **Writer context** is runtime-only and not part of **Settings**.
+- Recording Modules live under `cereal.media.recording` while recording is still part of the media runtime.
+- **Preview window** startup composition decides whether the first **Source** gets a **Frame writer** from its **Write flag**.
+- The first ffmpeg-backed **Frame writer** opens lazily when the first **Frame** is written.
 
 ## Example dialogue
 
@@ -149,3 +173,16 @@ _Avoid_: Source path, config path, cache path
 - Source adapter lifecycle scope was ambiguous — resolved: phase one keeps the adapter interface test-first and tiny, deferring async streaming, capabilities, metadata, and health checks.
 - Preview testing scope was ambiguous — resolved: unit test non-visual control flow and resource handling, but leave actual **Preview window** appearance and playback verification to manual testing.
 - Future media branches were ambiguous during the first file-preview phase — resolved historically: USB cameras, RTSP, writing, multi-source runtime, and preprocessing were outside that phase.
+- First recording scope was ambiguous between headless recording, recording all configured **Sources**, and recording through the existing **Preview window** path — resolved: first record only the first configured **Source** during preview when its **Write flag** is true.
+- First **Recording artifact** shape was ambiguous between configurable filenames, segmented files, and one artifact per run — resolved: first write one `.mp4` under `Storage root / Source name / date / Unix timestamp`.
+- "device" was used as a possible recording path segment — resolved: use **Source name** so file, device, and future Source schemes share the same path model.
+- Recording directory ownership was ambiguous — resolved: Cereal creates required child directories under **Storage root** and lets filesystem failures remain natural.
+- Recording loop shape was ambiguous between bolting writes into preview and a broad recording service — resolved: introduce a tiny **Frame writer** boundary used by the existing **Preview window** loop.
+- Recording format configuration was ambiguous — resolved: recording format details will become configurable later, but the first slice uses Cereal-owned prototype defaults.
+- The first recording codec default was ambiguous after OpenCV-produced MP4 files proved player-fragile — resolved: keep MP4, but use a more flexible ffmpeg-backed writer instead of OpenCV `VideoWriter`.
+- Recording default ownership was ambiguous between hard-coded writer values and user-facing config — resolved: first use an injected **Writer context** carrying Cereal-owned prototype defaults, with user-facing configuration deferred.
+- **Writer context** placement was ambiguous between YAML **Settings** and runtime dependencies — resolved: keep it runtime-only for the first recording slice.
+- Recording package placement was ambiguous between `cereal.media` and a new top-level package — resolved: use `cereal.media.recording` now and defer broader restructuring until Cereal has a second runtime mode beyond preview.
+- Recording policy placement was ambiguous between the preview loop and startup composition — resolved: startup composition decides whether to attach a **Frame writer**, while the loop only writes frames when one is present.
+- **Frame writer** opening time was ambiguous between startup and first frame — resolved: open lazily on the first written **Frame** so frame size can come from actual media.
+- **Recording artifact** path derivation was ambiguous between writer-side filesystem behavior and a pure path rule — resolved: derive the path in a pure Module and create directories at the writer boundary.

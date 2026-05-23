@@ -12,8 +12,13 @@ release is cut.
 - `cereal.media` package with `file:` and `device:` source adapters, a
   source-URI helper, a source-adapter registry, and an OpenCV-backed
   preview loop.
+- Source recording during preview when the first configured source has
+  `write: true`, including `.mp4` artifact path derivation and lazy
+  ffmpeg-backed frame writing.
 - Default `cereal` CLI command now opens the first configured source in a
   preview window after loading settings.
+- Default `config/settings.yaml` now points at `device:0` with recording
+  enabled for local source-recording verification.
 - `--config` flag for selecting a non-default configuration file.
 - `pydantic-settings`-backed `Settings` and `SourceSettings` types loaded
   from a YAML configuration file.
@@ -25,8 +30,11 @@ release is cut.
   documented inline in `pyproject.toml`.
 - `cereal.media.preview` no longer exports `load_opencv`; OpenCV is resolved
   once when either `capture_factory` or `backend` is omitted.
+- Recording defaults now use ffmpeg-backed `.mp4` + `libx264`, and `Ctrl-C`
+  is treated as a graceful preview stop so recording artifacts are finalized.
 
 ### Dependencies
 
+- Uses the system `ffmpeg` binary for default MP4 recording.
 - Added `opencv-python>=4.13.0.92`.
 - Added `pydantic-settings[yaml]>=2.14.1`.

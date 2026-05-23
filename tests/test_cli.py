@@ -49,3 +49,20 @@ def test_main_accepts_config_flag_from_process_argv(
     monkeypatch.setattr("sys.argv", ["cereal", "--config", str(config_path)])
 
     assert main(preview=noop_preview) == 0
+
+
+def test_main_loads_default_settings_path_without_config_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config" / "settings.yaml"
+    config_path.parent.mkdir()
+    write_config(config_path, storage=tmp_path / "storage")
+    previewed_storage_paths: list[Path] = []
+    monkeypatch.chdir(tmp_path)
+
+    def preview(settings: Settings) -> None:
+        previewed_storage_paths.append(settings.storage)
+
+    assert main([], preview=preview) == 0
+    assert previewed_storage_paths == [tmp_path / "storage"]
