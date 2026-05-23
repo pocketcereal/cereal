@@ -26,6 +26,7 @@ If the repo uses glossary/context docs, they live under `docs/CONTEXT.md` or `do
 - Keep tests close to the behavior they cover.
 - Do not introduce new dependencies unless they clearly simplify the implementation.
 - Update docs when behavior, commands, or workflow expectations change.
+- Record meaningful changes in `CHANGELOG.md` under `[Unreleased]` (Keep a Changelog format).
 - Prefer functional programming patterns: pure functions, explicit inputs, immutable data where practical, and isolated side effects.
 - Use dependency injection for configuration, IO, clients, clocks, and other external effects.
 - Apply SOLID principles pragmatically; keep modules cohesive, dependencies explicit, and interfaces narrow.

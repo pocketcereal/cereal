@@ -35,6 +35,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Tests document intent through their function names and AAA structure;
+# pydocstyle (D101/D102/D103/D107) and assert-use (S101) are intentional
+# allowances rather than blanket suppressions of strict ruff "ALL".
 "tests/**/*.py" = ["D101", "D102", "D103", "D107", "S101"]
 
 [tool.ty.rules]

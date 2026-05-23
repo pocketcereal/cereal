@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 from cereal.media.registry import default_source_adapter_registry
 from cereal.media.sources import open_first_configured_source
 
-__all__ = ["PreviewBackend", "load_opencv", "run_preview", "run_preview_loop"]
+__all__ = ["PreviewBackend", "run_preview", "run_preview_loop"]
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class PreviewBackend:
     destroy_windows: Callable[[], None]
 
 
-def load_opencv() -> ModuleType:  # noqa: D103
+def _load_opencv() -> ModuleType:
     import cv2  # noqa: PLC0415
 
     return cv2
@@ -54,14 +54,16 @@ def run_preview(
     backend: PreviewBackend | None = None,
 ) -> None:
     """Open the first configured source and run the preview loop."""
-    opencv = None
-    if capture_factory is None:
-        opencv = load_opencv()
-        capture_factory = opencv.VideoCapture
+    if capture_factory is None or backend is None:
+        opencv = _load_opencv()
+        if capture_factory is None:
+            capture_factory = opencv.VideoCapture
+        if backend is None:
+            backend = _opencv_preview_backend(opencv)
 
     registry = default_source_adapter_registry(capture_factory)
     capture = open_first_configured_source(settings, registry)
-    run_preview_loop(capture, backend or _opencv_preview_backend(opencv or load_opencv()))
+    run_preview_loop(capture, backend)
 
 
 def run_preview_loop(
