@@ -3,7 +3,7 @@ version: "3"
 tasks:
   dev:
     cmds:
-      - uv run cereal
+      - uv run cereal --config config/dev.yaml
 
   lint:
     cmds:

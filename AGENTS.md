@@ -20,6 +20,8 @@ If the repo uses glossary/context docs, they live under `docs/CONTEXT.md` or `do
 
 ## Coding guidelines
 
+- Treat Cereal as an extremely lean prototype unless a task explicitly says otherwise: keep behavior simple, prefer natural library/runtime errors over deep error handling, and add logging only where it clarifies an operational boundary.
+- Favor many small, single-purpose modules over large files. When a module starts combining unrelated responsibilities, split out a small testable unit instead of growing the file.
 - Prefer small, focused changes that match the existing project structure.
 - Keep tests close to the behavior they cover.
 - Do not introduce new dependencies unless they clearly simplify the implementation.

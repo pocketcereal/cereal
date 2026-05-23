@@ -1,0 +1,4 @@
+storage: data/storage
+sources:
+  - name: camera
+    uri: device:0
