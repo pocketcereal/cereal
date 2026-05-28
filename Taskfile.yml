@@ -3,7 +3,11 @@ version: "3"
 tasks:
   dev:
     cmds:
-      - uv run cereal
+      - uv run cereal --overlays
+
+  detections:
+    cmds:
+      - uv run cereal detections --limit 20
 
   lint:
     cmds:

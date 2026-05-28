@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "opencv-python>=4.13.0.92",
     "pydantic-settings[yaml]>=2.14.1",
+    "ultralytics>=8.4.55",
 ]
 
 [project.scripts]
@@ -45,3 +46,8 @@ all = "error"
 
 [tool.ty.src]
 include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: opt-in tests that load real models or external resources",
+]

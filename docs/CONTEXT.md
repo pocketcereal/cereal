@@ -28,6 +28,18 @@ _Avoid_: Env config, defaults file
 The CLI option that selects which **Configuration file** to load.
 _Avoid_: Settings argument, config env var
 
+**Preview flag**:
+The CLI option that controls whether the **Preview window** is opened while detection runs.
+_Avoid_: Display mode, UI switch, headless flag
+
+**Overlay flag**:
+The CLI option that enables **Detection overlay** rendering in the **Preview window**.
+_Avoid_: Draw flag, debug UI, box mode
+
+**Detection log**:
+An operational log line emitted at detection startup, source opening, sampling, or persistence boundaries.
+_Avoid_: Debug print, trace spam, audit event
+
 **Source**:
 A configured media input in Cereal settings.
 _Avoid_: Stream, feed, input source
@@ -104,6 +116,10 @@ _Avoid_: Vector store, semantic cache, analytics database
 A structured request for **Detection events** filtered by source, class, **Observed time**, or **Media time**.
 _Avoid_: SQL query, search prompt, vector query
 
+**Analysis query**:
+A provider-free orchestration request that selects **Detection events**, retrieves **Evidence windows**, and applies one explicit **Visual claim** through an injected **Visual validator**.
+_Avoid_: User question, VLM prompt, detection query
+
 **Detection stream defaults**:
 The prototype-owned sample interval and confidence threshold values for the **Detection** stream loop.
 _Avoid_: Detection config, stream settings, detector options
@@ -125,20 +141,72 @@ An optional retrieval aid for fuzzy visual or text similarity over stored eviden
 _Avoid_: Detection store, source of truth, vector database
 
 **Evidence window**:
-A bounded group of nearby **Frames** around one or more **Detection events** or one **Object track**.
-_Avoid_: Clip, segment, frame group
+A transient, in-memory group of nearby full **Frames** around one **Detection event** or one **Object track**.
+_Avoid_: Clip, segment, frame group, evidence packet
+
+**Evidence packet**:
+A future durable and shareable unit of visual evidence with metadata stable enough for agents, memory, and audit trails.
+_Avoid_: Evidence window, raw frames, recording artifact
+
+**Evidence target**:
+The **Detection event** context carried with an **Evidence window**, including class name, confidence, **Bounding box**, and center frame index.
+_Avoid_: Crop, object image, validation target
+
+**Evidence artifact**:
+A persisted derivative of recoverable evidence, such as extracted still frames or a short clip.
+_Avoid_: Evidence reference, recording artifact, source video
 
 **Visual validation**:
 A focused VLM judgment about one claim against one **Evidence window**.
 _Avoid_: Detection, confirmation, VLM result
 
-**Analysis agent**:
-The agent that turns a user question into **Detection store** queries, **Evidence windows**, **Visual validations**, and a final answer.
-_Avoid_: Main agent, deep agent, reporter
+**Visual inspection**:
+A structured **Analysis** result that ties together the original **Detection event**, **Evidence window**, **Visual claim**, and **Visual validation**.
+_Avoid_: Answer, validated event, evidence packet, generic analysis result
+
+**Orchestrator agent**:
+The main agent that turns user intent into an analysis strategy using Cereal's tools, roles, and evidence primitives.
+_Avoid_: Main agent, deep agent, reporter, hardcoded analysis workflow, SupervisorAgent
+
+**Agent harness**:
+The runtime scaffold that gives agents planning, memory, filesystem or context, tools, and subagent delegation.
+_Avoid_: Agent definition, individual agent, tool catalog
+
+**Agent definition**:
+A packaged agent description that includes instructions, tools, skills, permissions, model choice, response schema, memory or context, and other configuration needed to instantiate an agent or subagent.
+_Avoid_: Agent building block, Lego agent, agent bundle, prompt only
+
+**Agent registry**:
+A catalog of available **Agent definitions** that the **Orchestrator agent** can inspect or select from.
+_Avoid_: Tool registry, plugin registry, import list
+
+**Subagent**:
+An agent delegated to by the **Orchestrator agent** for focused work with its own context and tool scope.
+_Avoid_: Worker, random helper, tool
+
+**Specialized subagent**:
+A **Subagent** with focused instructions, tool access, permissions, and output contract for a narrow kind of work.
+_Avoid_: Specialist agent, expert agent, worker
+
+**Analysis**:
+The Cereal domain area that coordinates **Detection store** results, **Evidence window** retrieval, future **Visual validations**, and answer composition.
+_Avoid_: Detection, evidence, VLM utilities
 
 **Validation role**:
 A reusable role contract for focused **Visual validation** work.
-_Avoid_: Free-form subagent, worker, persona
+_Avoid_: Free-form **Subagent**, worker, persona
+
+**Visual claim**:
+One focused claim to validate against an **Evidence window**.
+_Avoid_: Prompt, user question, detection label
+
+**Visual claim generation**:
+The planning step that turns a user question or analysis task into focused **Visual claims**.
+_Avoid_: Visual validation, prompt template, detector label
+
+**Visual validator**:
+A replaceable port that evaluates one **Visual claim** against one **Evidence window**.
+_Avoid_: VLM client, model, agent
 
 **Frame writer**:
 The runtime component that writes **Frames** into a **Recording artifact**.
@@ -151,6 +219,10 @@ _Avoid_: Recording config, writer settings, output profile
 **Preview window**:
 A lightweight local desktop window used to display frames from one **Source** during development and manual verification.
 _Avoid_: Browser view, VLC output, production monitor
+
+**Detection overlay**:
+Bounding box and class/confidence label rendering for sampled detections in the **Preview window**.
+_Avoid_: Detection result, annotation file, UI layer
 
 **Write flag**:
 The optional per-**Source** setting that decides whether Cereal records that **Source**.
@@ -201,9 +273,36 @@ _Avoid_: File path, artifact path, storage key
 - The first **Detection store** slice runs detection over the first configured **Source** before adding the future background processing runtime.
 - **Detection** consumes **Frames** from media runtime boundaries but is not part of the media runtime itself.
 - A **Semantic index** may reference evidence in the **Detection store**, but it does not own canonical detection history.
-- An **Evidence window** references nearby **Frames** around **Detection events** or an **Object track** for later visual review.
+- An **Evidence window** references nearby full **Frames** around a **Detection event** or an **Object track** for later visual review.
+- The first **Evidence window** retrieval slice is centered on one **Detection event**, uses a frame-radius window, and requires the center **Frame**.
+- Neighbor **Frames** in an **Evidence window** are best-effort so start-of-file and end-of-file windows can still be useful.
+- An **Evidence window** is not an **Evidence packet**; windows are temporary retrieval results, while packets are future durable evidence units.
+- An **Evidence packet** may be created from one or more **Detection events** plus recovered **Frames**, but it does not become the source of truth for those detections or frames.
+- An **Evidence packet** preserves its original evidence basis; later **Visual validations** may agree or disagree with that basis without mutating the underlying **Detection events**.
+- An **Evidence target** preserves the **Detection event** context inside an **Evidence window** without cropping the recovered **Frames**.
+- An **Evidence artifact** is a future persisted derivative; first-slice retrieval returns in-memory **Frames** only.
 - A **Visual validation** evaluates one claim against one **Evidence window** and does not replace the underlying **Detection events**.
-- An **Analysis agent** may query the **Detection store**, select **Evidence windows**, request **Visual validations**, and compose an answer.
+- A **Visual inspection** is an intermediate **Analysis** product, not a user-facing answer or a promoted **Validated event**.
+- A **Visual inspection** preserves the original **Detection event**, the selected **Evidence window**, the **Visual claim**, and the resulting **Visual validation** together.
+- First-slice **Visual inspections** carry the full in-memory **Evidence window** and do not define a durable ID, database row, or serialization contract.
+- A **Visual claim** is narrower than a user question; it should be focused enough for one **Visual validator** call.
+- **Visual claim generation** belongs to future **Orchestrator agent** or task-planning behavior, not to **Validation**.
+- A deterministic `cereal.analysis.claims` helper may exist later only as a provider-free first slice for end-to-end testing.
+- A **Visual validator** is a port so provider-specific VLM behavior stays outside the **Analysis**, **Detection**, and **Evidence** domains.
+- First-slice **Visual validation** validates exactly one **Visual claim** against exactly one **Evidence window**.
+- Broader questions are answered by **Analysis** composition over many focused **Visual validations**, not by broadening the **Visual validator** contract.
+- An **Orchestrator agent** may query the **Detection store**, select **Evidence windows**, request **Visual validations**, create or choose **Agent definitions**, delegate to **Specialized subagents**, and compose an answer.
+- The **Orchestrator agent** should choose an analysis strategy from available tools and **Agent definitions** rather than following a hardcoded workflow for each user question.
+- **Agent definitions** may be static or future runtime-created definitions, but they need explicit capabilities, context, and permission boundaries.
+- The first **Agent definition** implementation loads local `.agent` directories from `agent.toml` plus `instructions.md`.
+- The first **Agent registry** is static and in-memory; it supports lookup by stable Agent definition name.
+- **Analysis** composition may coordinate **Detection store** queries and **Evidence window** retrieval without moving store access into **Evidence**.
+- **Analysis** owns orchestration over domain ports, not canonical domain state.
+- **Analysis** should not own detection persistence, evidence frame reading rules, provider-specific VLM clients, prompt internals, long-lived memory, or watch/task lifecycle.
+- If **Analysis** starts accumulating policies for claim generation, enough-evidence decisions, user-answer composition, or task lifecycle, split those into explicit agent or task modules instead of growing `cereal.analysis`.
+- The first provider-free **Analysis query** accepts a **Detection event query** plus one explicit **Visual claim**, retrieves **Evidence windows**, validates each through an injected **Visual validator**, and returns **Visual inspections**.
+- The first **Analysis query** slice does not add provider clients, prompt templates, user question parsing, or broad CLI surface.
+- First-slice **Analysis query** behavior is fail-fast: missing center-frame evidence or **Visual validator** errors fail the whole query; an empty **Detection event query** result returns an empty tuple.
 - A **Validation role** defines the focused instructions and output contract for one kind of **Visual validation**.
 - A **Frame writer** writes **Frames** from one **Source** into one **Recording artifact**.
 - A **Writer context** provides the default recording values needed to create a **Frame writer**.
@@ -227,6 +326,7 @@ _Avoid_: File path, artifact path, storage key
 - An **Evidence reference** points back to the **Recording artifact** and frame position needed to recover visual evidence.
 - An **Evidence URI** identifies the recoverable evidence artifact without assuming it is always a local filesystem path.
 - Local **Recording artifacts** and original file evidence use standard `file://` **Evidence URIs** until Cereal has an artifact catalog.
+- First-slice **Evidence window** retrieval supports local `file://` **Evidence URIs** only.
 - A **Detection event** should retain enough **Evidence reference** data to recover its source **Frame** later.
 - A capture-device **Detection event** should reference a **Recording artifact** created while detection runs.
 - A file-source **Detection event** may reference the original file as its recoverable evidence artifact.
@@ -257,6 +357,44 @@ _Avoid_: File path, artifact path, storage key
 - The detection stream loop is built as an independently testable unit before being composed with **Preview window** and evidence recording.
 - Detection stream sampling, threshold filtering, and event conversion are pure helper functions reused by both the standalone loop and the composed runtime.
 - **Detection** types and contracts live in `cereal.detection`, a flat package sibling to `cereal.media`.
+- **Evidence** types and retrieval rules live in `cereal.evidence`, a flat package sibling to `cereal.detection` and `cereal.media`.
+- **Agent definition** loading and static **Agent registry** behavior live in `cereal.agents`.
+- **Evidence** does not query the **Detection store**; callers pass a selected **Detection event** into retrieval.
+- OpenCV-backed evidence reading lives behind the Evidence video adapter, not in the pure retrieval rules.
+- **Analysis** selection retrieves **Evidence windows** for caller-provided **Detection event queries** by composing a **Detection store** and an Evidence frame reader.
+- First-slice **Analysis** selection fails the whole request when any selected **Detection event** cannot recover its center **Frame**.
+- **Analysis** visual validation composition applies one **Visual claim** to selected **Evidence windows** through an injected **Visual validator**.
+- Detection runs by default through the `cereal` **CLI command**.
+- The **Preview flag** can disable the **Preview window** for automated or headless runs.
+- The **Overlay flag** enables **Detection overlay** rendering; overlays remain off by default.
+- **Detection logs** use standard Python logging with module-level `logger = logging.getLogger(__name__)`.
+
+## Current implementation map
+
+The current Cereal foundation is a library-first pipeline:
+
+```text
+Source
+  -> Detection stream
+  -> Detection store
+  -> Detection event query
+  -> Evidence window
+  -> Visual validation
+  -> Visual inspection
+
+Agent definition
+  -> Agent registry
+```
+
+- `cereal.detection` owns **Detection event** creation, storage, YOLO adapter boundaries, detection querying, and preview overlays.
+- `cereal.evidence` owns **Detection event** to **Evidence window** retrieval and local `file://` frame reading.
+- `cereal.analysis` owns composition across **Detection store**, **Evidence window** retrieval, and **Visual validator** calls.
+- `cereal.validation` owns provider-free **Visual claim**, **Visual validation**, and **Visual validator** contracts.
+- `cereal.agents` owns provider-free **Agent definition** loading and static **Agent registry** lookup.
+- `cereal.media` still owns **Source adapter**, **Preview window**, and **Recording artifact** mechanics.
+- `uv run cereal` runs the first-source detection path; `task dev` runs it with **Detection overlays** enabled.
+- `cereal detections` / `task detections` inspect stored **Detection events**.
+- There is no concrete VLM provider adapter, no prompt template, no user-facing question parser, no **Object track** creation, and no persisted **Visual validation** result yet.
 
 ## Example dialogue
 
@@ -292,8 +430,11 @@ _Avoid_: File path, artifact path, storage key
 - Tracking scope was ambiguous for the first detection slice — resolved: first persist **Detection events** with optional track IDs, then handle **Object track** creation and count semantics in a later pass.
 - Vector storage was ambiguous as either the primary detection history or a retrieval aid — resolved: the **Detection store** owns canonical structured detection history, while a **Semantic index** is optional and non-canonical.
 - "storage engine" was considered for persistence abstraction — resolved: use domain stores as ports and **Store backends** for concrete persistence implementations; defer factories/builders until more than one backend exists.
-- "main agent", "deep agent", and "reporter" were ambiguous between product roles and library concepts — resolved: use **Analysis agent** for the Cereal domain role that plans and answers user questions.
-- Agent creation scope is intentionally staged — resolved: first use predefined **Validation roles** for testable **Visual validations**, while leaving long-term room for the **Analysis agent** to create and manage its own specialist roles.
+- "main agent", "deep agent", "supervisor agent", "orchestrator", and "reporter" were ambiguous between product roles and library concepts — resolved: use **Orchestrator agent** for the Cereal domain role that plans an analysis strategy and answers user questions.
+- Agent creation scope is intentionally staged — resolved: first use predefined **Validation roles** for testable **Visual validations**, while leaving long-term room for the **Orchestrator agent** to create and manage its own **Specialized subagents**.
+- "Lego agent", "Agent building block", and "Agent bundle" were useful conversationally but overloaded — resolved: use **Agent definition** for the packaged `.agent`-style unit and align delegation language with Deep Agents **Subagents**.
+- "Specialist agent" and "expert agent" were ambiguous against Deep Agents terminology — resolved: use **Specialized subagent** for focused delegated agents.
+- Agent registry scope was ambiguous between a runtime Deep Agents integration and a provider-free catalog — resolved: first add a static in-memory **Agent registry** over loaded local **Agent definitions**.
 - First implementation focus was ambiguous between agents, vectors, tracking, and persistence — resolved: start with the **Detection store** fed by YOLO-backed **Detection events**, then break that domain into child tasks after the high-level pass.
 - Detection module placement was ambiguous between media and a separate domain package — resolved: use **Detection** as a separate domain area because it consumes media **Frames** but owns persisted model observations.
 - Background processing scope was ambiguous for the first detection slice — resolved: first run detection over the first configured **Source**, while the future architecture keeps continuous background detection over active **Sources** as the target.
@@ -311,7 +452,8 @@ _Avoid_: File path, artifact path, storage key
 - Planning location for `device:` support was ambiguous because the media architecture deepening PRD excludes new **Source adapter** schemes — resolved: track **Capture device** preview in its own small PRD.
 - Preview command shape was ambiguous between a subcommand and default startup behavior — resolved: phase one starts preview directly from the existing **CLI command** and defers subcommands until the command surface needs them.
 - Detection command shape is intentionally minimal for now; avoid a robust CLI or broad configuration surface until detection behavior is proven.
-- `task dev` is the prototype entrypoint and should run the first-source detection path once that path exists.
+- `task dev` is the prototype entrypoint and runs the first-source detection path with preview enabled by default.
+- Headless detection verification was ambiguous after detection landed — resolved: add a **Preview flag** so `--no-preview` runs the same first-source detection path without opening the **Preview window**.
 - Detector model settings use prototype-owned runtime defaults in the first detection slice, with model selection deferred until the model boundary and future agent responsibilities are clearer.
 - Multiple-source preview scope was ambiguous — resolved: phase one previews only the first configured **Source**.
 - Preview backend was ambiguous — resolved: phase one uses OpenCV as the simple file-reading and desktop-window backend, without committing to OpenCV as the long-term media stack.
@@ -343,9 +485,30 @@ _Avoid_: File path, artifact path, storage key
 - **Detection store** index strategy was ambiguous — resolved: include composite indexes for source+observed time, source+media time, source+class name, source+class name+observed time, source+class name+media time.
 - Capture-device evidence recording and the **Write flag** were ambiguous — resolved: capture-device detection records evidence regardless of the **Write flag**; the **Write flag** controls user-requested recording only.
 - Detection loop architecture was ambiguous between injecting into preview and a standalone loop — resolved: build the detection stream loop as an independently testable unit, then compose it with **Preview window** and evidence recording in a separate wiring issue.
-- Detection overlay default was ambiguous — resolved: overlays are optional and off by default unless enabled by prototype composition.
+- Detection overlay default was ambiguous — resolved: overlays are optional and off by default unless enabled by the **Overlay flag** or injected prototype composition.
 - Detection overlay persistence between samples was ambiguous — resolved: persist last-sampled detections as overlay on every frame until the next sample replaces them.
 - **Object detector** frame input type was ambiguous — resolved: accept `np.ndarray` directly without a wrapper type.
 - YOLO adapter naming was ambiguous — resolved: use `UltralyticsObjectDetector` because it implements the **Object detector** protocol, not just YOLO.
 - Ultralytics dependency packaging was ambiguous between hard and optional — resolved: hard dependency for the prototype phase.
-- Detection activation was ambiguous between CLI flag and always-on — resolved: detection always runs when wired at composition; no CLI flag for the prototype.
+- Detection activation was ambiguous between CLI flag and always-on — resolved: detection runs by default in the prototype; CLI flags only control preview display and overlay drawing.
+- Evidence retrieval scope was ambiguous between in-memory frames and persisted derivatives — resolved: first retrieve in-memory **Evidence windows** and defer **Evidence artifacts**.
+- Evidence window terminology was ambiguous against **Evidence packet** — resolved: **Evidence windows** are transient retrieval shapes; **Evidence packets** are future durable, shareable evidence units.
+- Evidence packet authority was ambiguous — resolved: **Evidence packets** bundle evidence and provenance, while the **Detection store** remains canonical for **Detection events** and the source file or **Recording artifact** remains canonical for frames.
+- Evidence retrieval input was ambiguous between arbitrary time/source lookups and selected detections — resolved: first center retrieval on a caller-provided **Detection event**.
+- Evidence window sizing was ambiguous between seconds and frame counts — resolved: first use a frame radius with a default of 2.
+- Evidence frame shape was ambiguous between crops and full frames — resolved: first return full frames and carry the **Bounding box** as **Evidence target** metadata.
+- Evidence reader scope was ambiguous between all URI schemes and local evidence — resolved: first support local `file://` **Evidence URIs** only.
+- Evidence window failure behavior was ambiguous — resolved: the center **Frame** is required and neighbor **Frames** are best-effort.
+- Analysis composition placement was ambiguous after Evidence retrieval landed — resolved: introduce `cereal.analysis` as the coordinator between **Detection** and **Evidence** rather than letting either domain import the other direction.
+- Analysis ownership was ambiguous — resolved: **Analysis** owns orchestration over ports and returned values, not canonical state or provider internals.
+- Next implementation slice was ambiguous between a VLM adapter and provider-free orchestration — resolved: add an **Analysis query** slice first, using fake/injected **Visual validators** before adding model-provider complexity.
+- Analysis evidence selection failure behavior was ambiguous between partial results and hard failure — resolved: first fail the request when any selected **Detection event** cannot recover its center **Frame**.
+- Analysis validator failure behavior was ambiguous between partial results and fail-fast — resolved: first fail the whole **Analysis query** if the injected **Visual validator** fails on any selected **Evidence window**.
+- Visual validation placement was ambiguous between provider code and analysis code — resolved: add `cereal.validation` for provider-free **Visual claim**, **Visual validation**, and **Visual validator** contracts, with `cereal.analysis` only coordinating calls.
+- Visual validation scope was ambiguous between broad user questions and focused checks — resolved: first validate one **Visual claim** against one **Evidence window**, while **Analysis** composes broad answers later.
+- Visual inspection naming was ambiguous — resolved: use **Visual inspection** for the structured intermediate **Analysis** result tying together **Detection event**, **Evidence window**, **Visual claim**, and **Visual validation**.
+- Visual inspection persistence shape was ambiguous — resolved: first keep **Visual inspections** transient and include the full in-memory **Evidence window**; define durable references only when persistence is introduced.
+- Visual claim generation placement was ambiguous — resolved: **Validation** evaluates supplied claims only; claim generation belongs to future **Orchestrator agent** or task-planning behavior, with a deterministic Analysis helper allowed only as a first-slice bridge.
+- Cereal wiki maintenance automation is deferred — add a Codex/Claude hook later
+  that reminds or enforces updating `docs/CONTEXT.md` after grilling sessions
+  that settle durable domain vocabulary or architecture decisions.

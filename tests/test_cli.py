@@ -2,21 +2,149 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from cereal.cli import main
+import pytest
+
+from cereal.cli import main, parse_cli_options
+from cereal.detection.query import DetectionQueryOptions
 from tests.helpers import write_config
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
-
     from cereal.settings import Settings
 
 
-def noop_preview(_settings: Settings) -> None:
-    pass
+def noop_preview(
+    _settings: Settings,
+    *,
+    preview_enabled: bool = True,
+    enable_overlays: bool = False,
+) -> None:
+    del preview_enabled
+    del enable_overlays
+
+
+def test_parse_cli_options_defaults_to_preview_enabled() -> None:
+    options = parse_cli_options([])
+
+    assert options.preview_enabled is True
+
+
+def test_parse_cli_options_accepts_no_preview() -> None:
+    options = parse_cli_options(["--no-preview"])
+
+    assert options.preview_enabled is False
+
+
+def test_parse_cli_options_accepts_explicit_preview() -> None:
+    options = parse_cli_options(["--preview"])
+
+    assert options.preview_enabled is True
+
+
+def test_parse_cli_options_accepts_overlays() -> None:
+    options = parse_cli_options(["--overlays"])
+
+    assert options.overlays_enabled is True
+
+
+def test_parse_cli_options_accepts_detection_query_filters() -> None:
+    options = parse_cli_options(
+        [
+            "detections",
+            "--source",
+            "camera",
+            "--class",
+            "person",
+            "--min-confidence",
+            "0.8",
+            "--observed-start",
+            "2026-05-24T12:00:00Z",
+            "--media-start-ms",
+            "1000",
+            "--limit",
+            "5",
+        ],
+    )
+
+    assert options.command == "detections"
+    assert options.detection_query == DetectionQueryOptions(
+        source_name="camera",
+        class_name="person",
+        observed_time_start=datetime(2026, 5, 24, 12, tzinfo=UTC),
+        media_time_start=1000,
+        min_confidence=0.8,
+        limit=5,
+    )
+
+
+def test_parse_cli_options_accepts_detection_query_config_after_subcommand(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "settings.yaml"
+
+    options = parse_cli_options(["detections", "--config", str(config_path)])
+
+    assert options.config_path == config_path
+
+
+def test_main_passes_preview_flag_to_runtime(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage")
+    preview_values: list[bool] = []
+
+    def preview(_settings: Settings, *, preview_enabled: bool, enable_overlays: bool) -> None:
+        del enable_overlays
+        preview_values.append(preview_enabled)
+
+    assert main(["--config", str(config_path), "--no-preview"], preview=preview) == 0
+    assert preview_values == [False]
+
+
+def test_main_passes_overlay_flag_to_runtime(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage")
+    overlay_values: list[bool] = []
+
+    def preview(_settings: Settings, *, preview_enabled: bool, enable_overlays: bool) -> None:
+        assert preview_enabled is True
+        overlay_values.append(enable_overlays)
+
+    assert main(["--config", str(config_path), "--overlays"], preview=preview) == 0
+    assert overlay_values == [True]
+
+
+def test_main_runs_detection_query_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage")
+    queried: list[DetectionQueryOptions] = []
+
+    def query(_settings: Settings, options: DetectionQueryOptions) -> int:
+        queried.append(options)
+        return 0
+
+    assert (
+        main(
+            ["--config", str(config_path), "detections", "--class-name", "person"],
+            preview=noop_preview,
+            query=query,
+        )
+        == 0
+    )
+    assert queried == [
+        DetectionQueryOptions(class_name="person"),
+    ]
+
+
+def test_main_rejects_conflicting_preview_flags(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage")
+
+    with pytest.raises(SystemExit):
+        main(["--config", str(config_path), "--preview", "--no-preview"], preview=noop_preview)
 
 
 def test_main_accepts_config_flag(tmp_path: Path) -> None:
@@ -32,7 +160,14 @@ def test_main_starts_preview_after_loading_settings(tmp_path: Path) -> None:
     write_config(config_path, storage=tmp_path / "storage")
     previewed_storage_paths: list[Path] = []
 
-    def preview(settings: Settings) -> None:
+    def preview(
+        settings: Settings,
+        *,
+        preview_enabled: bool,
+        enable_overlays: bool,
+    ) -> None:
+        assert preview_enabled is True
+        assert enable_overlays is False
         previewed_storage_paths.append(settings.storage)
 
     assert main(["--config", str(config_path)], preview=preview) == 0
@@ -61,7 +196,14 @@ def test_main_loads_default_settings_path_without_config_flag(
     previewed_storage_paths: list[Path] = []
     monkeypatch.chdir(tmp_path)
 
-    def preview(settings: Settings) -> None:
+    def preview(
+        settings: Settings,
+        *,
+        preview_enabled: bool,
+        enable_overlays: bool,
+    ) -> None:
+        assert preview_enabled is True
+        assert enable_overlays is False
         previewed_storage_paths.append(settings.storage)
 
     assert main([], preview=preview) == 0

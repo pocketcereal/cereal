@@ -5,7 +5,6 @@ status: done
 parent: ./PRD.md
 depends_on: ["source-recording-01"]
 external_ref:
-labels: ["needs-triage"]
 ---
 
 ## Goal
