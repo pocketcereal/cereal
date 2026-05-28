@@ -19,6 +19,19 @@ def test_load_settings_accepts_yaml_config(tmp_path: Path) -> None:
     load_settings(config_path)
 
 
+def test_load_settings_includes_orchestrator_model(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(
+        config_path,
+        storage=tmp_path / "storage",
+        orchestrator_model="ollama:qwen2.5:7b",
+    )
+
+    settings = load_settings(config_path)
+
+    assert settings.orchestrator.model == "ollama:qwen2.5:7b"
+
+
 def test_config_flag_selects_yaml_config(tmp_path: Path) -> None:
     """The explicit config flag can select a YAML configuration file."""
     flag_config = tmp_path / "flag.yaml"

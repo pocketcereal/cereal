@@ -1,0 +1,6 @@
+name = "orchestrator"
+description = "Plans Cereal visual-analysis strategies from available tools and specialized subagents."
+kind = "orchestrator"
+tools = []
+skills = []
+permissions = []

@@ -25,6 +25,18 @@ release is cut.
   Evidence windows.
 - `cereal.agents` provider-free Agent definition loading from local `.agent`
   directories and a static Agent registry.
+- `cereal.agents.deepagents_adapter` with a pure typed adapter from
+  `specialized-subagent` Agent definitions to Deep Agents subagent config.
+- `cereal.agents.deepagents_runtime` with pure Deep Agents composition helpers,
+  repo-local `orchestrator` and `detection-lookup` Agent definitions, and a
+  local Ollama Orchestrator smoke path.
+- Required `orchestrator.model` settings loaded from the Cereal YAML
+  configuration file.
+- Draft `agent-harness-integration` PRD and issue path for mapping Agent
+  definitions into a Deep Agents harness adapter without hosted-service
+  coupling.
+- Added the next `agent-harness-integration` issue path for isolated
+  `detection-lookup` tool binding before visual-query planning.
 - `cereal detections` query command and `task detections` shortcut for local
   Detection store inspection.
 - `cereal.media` package with `file:` and `device:` source adapters, a
@@ -71,6 +83,8 @@ release is cut.
 ### Dependencies
 
 - Uses the system `ffmpeg` binary for default MP4 recording.
+- Added `deepagents>=0.6.6`.
+- Added `langchain-ollama>=1.1.0`.
 - Added `opencv-python>=4.13.0.92`.
 - Added `pydantic-settings[yaml]>=2.14.1`.
 - Added `ultralytics>=8.4.55`.

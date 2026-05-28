@@ -9,6 +9,10 @@ tasks:
     cmds:
       - uv run cereal detections --limit 20
 
+  agent-smoke:
+    cmds:
+      - uv run cereal --agent orchestrator
+
   lint:
     cmds:
       - uv run ruff format --check

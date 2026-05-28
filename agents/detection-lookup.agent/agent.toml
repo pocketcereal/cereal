@@ -1,0 +1,6 @@
+name = "detection-lookup"
+description = "Finds Detection events by translating object language into detector label queries."
+kind = "specialized-subagent"
+tools = []
+skills = []
+permissions = []

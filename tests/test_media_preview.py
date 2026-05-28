@@ -285,6 +285,8 @@ def test_run_preview_attaches_writer_when_first_source_write_flag_is_true(tmp_pa
     config_path.write_text(
         f"""
 storage: {tmp_path / "storage"}
+orchestrator:
+  model: ollama:qwen2.5:7b
 sources:
   - name: camera
     uri: {source_file.as_uri()}
@@ -349,6 +351,8 @@ def test_run_preview_ignores_later_source_write_flags(tmp_path: Path) -> None:
     config_path.write_text(
         f"""
 storage: {tmp_path / "storage"}
+orchestrator:
+  model: ollama:qwen2.5:7b
 sources:
   - name: first
     uri: {first_source.as_uri()}

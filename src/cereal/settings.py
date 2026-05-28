@@ -42,10 +42,19 @@ class SourceSettings(BaseModel):
         return value
 
 
+class OrchestratorSettings(BaseModel):
+    """Typed runtime configuration for the Orchestrator agent."""
+
+    model: str
+
+    model_config = ConfigDict(frozen=True)
+
+
 class Settings(BaseSettings):
     """Typed runtime configuration for Cereal."""
 
     storage: Path
+    orchestrator: OrchestratorSettings
     sources: list[SourceSettings] = Field(min_length=1)
 
     model_config = SettingsConfigDict(

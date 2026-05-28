@@ -183,6 +183,14 @@ def test_agent_registry_rejects_duplicate_names(tmp_path: Path) -> None:
         AgentRegistry((first, second))
 
 
+def test_repo_local_agent_definitions_load() -> None:
+    orchestrator = load_agent_definition("agents/orchestrator.agent")
+    detection_lookup = load_agent_definition("agents/detection-lookup.agent")
+
+    assert orchestrator.kind == AgentDefinitionKind.ORCHESTRATOR
+    assert detection_lookup.kind == AgentDefinitionKind.SPECIALIZED_SUBAGENT
+
+
 @dataclass(frozen=True)
 class AgentDefinitionFixture:
     name: str

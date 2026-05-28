@@ -168,9 +168,21 @@ _Avoid_: Answer, validated event, evidence packet, generic analysis result
 The main agent that turns user intent into an analysis strategy using Cereal's tools, roles, and evidence primitives.
 _Avoid_: Main agent, deep agent, reporter, hardcoded analysis workflow, SupervisorAgent
 
+**Orchestrator settings**:
+The loaded runtime configuration for the **Orchestrator agent**, including the model used by the **Agent harness**.
+_Avoid_: CLI-only model flag, module-level model constant, environment-only config
+
+**Orchestrator model**:
+The model identifier passed to the **Agent harness** for the **Orchestrator agent**.
+_Avoid_: Detector model, YOLO model, provider key
+
 **Agent harness**:
 The runtime scaffold that gives agents planning, memory, filesystem or context, tools, and subagent delegation.
 _Avoid_: Agent definition, individual agent, tool catalog
+
+**Harness adapter**:
+A boundary that converts Cereal-owned **Agent definitions** and tool contracts into the configuration shape required by one **Agent harness**.
+_Avoid_: Domain model, direct framework dependency, runtime agent
 
 **Agent definition**:
 A packaged agent description that includes instructions, tools, skills, permissions, model choice, response schema, memory or context, and other configuration needed to instantiate an agent or subagent.
@@ -187,6 +199,10 @@ _Avoid_: Worker, random helper, tool
 **Specialized subagent**:
 A **Subagent** with focused instructions, tool access, permissions, and output contract for a narrow kind of work.
 _Avoid_: Specialist agent, expert agent, worker
+
+**Detection lookup subagent**:
+A generic **Specialized subagent** focused on retrieving or summarizing structured Detection store details for labels, Detection events, and future Object tracks.
+_Avoid_: Vehicle-color validator, example-specific subagent, Agent building block
 
 **Analysis**:
 The Cereal domain area that coordinates **Detection store** results, **Evidence window** retrieval, future **Visual validations**, and answer composition.
@@ -253,6 +269,8 @@ _Avoid_: File path, artifact path, storage key
 - The **Config flag** may select a **Configuration file** other than `config/settings.yaml`.
 - Missing **Configuration file** is a startup error for the **CLI command**.
 - The **Configuration file** defines one or more **Sources**.
+- The **Configuration file** defines **Orchestrator settings** once Cereal composes an **Orchestrator agent**.
+- **Orchestrator settings** live under the `orchestrator:` key in the existing **Configuration file**.
 - Each **Source** has one **Source URI**.
 - Each **Source** has one **Source name** and may have one **Source label**.
 - A **Source adapter** resolves a **Source URI** for one or more supported URI schemes.
@@ -296,6 +314,34 @@ _Avoid_: File path, artifact path, storage key
 - **Agent definitions** may be static or future runtime-created definitions, but they need explicit capabilities, context, and permission boundaries.
 - The first **Agent definition** implementation loads local `.agent` directories from `agent.toml` plus `instructions.md`.
 - The first **Agent registry** is static and in-memory; it supports lookup by stable Agent definition name.
+- Repo-local **Agent definitions** live under `agents/`.
+- Cereal's canonical **Agent definition** file shape remains `agent.toml` plus `instructions.md`; Deep Agents `AGENTS.md` conventions are harness details until Cereal explicitly adopts or exports them.
+- The first concrete **Specialized subagent** definition should be a generic **Detection lookup subagent**, not a subagent based on an illustrative user-question example.
+- A **Detection lookup subagent** may translate user object language into detector label candidates and query constraints, but it does not visually confirm attributes that are absent from Detection store data.
+- The first **Detection lookup subagent** Agent definition is named `detection-lookup`; YOLO awareness belongs in instructions, not in the canonical agent name.
+- **Specialized subagents** should be testable through their own composition boundaries instead of only through the **Orchestrator agent**.
+- The **Orchestrator agent** may depend on a **Specialized subagent** only after that subagent's definition, harness mapping, and tool boundary can be tested in isolation.
+- The next **Agent harness** slice after Orchestrator smoke is binding and testing `detection-lookup` tools before broad visual-query planning.
+- The first **Agent harness** composition API should be pure functions: a generic Deep Agents composition helper plus a named **Orchestrator agent** wrapper, not a broad runtime class.
+- The first **Orchestrator agent** wrapper registers all available `specialized-subagent` definitions from the provided **Agent registry**.
+- Cereal's long-term agent architecture should provide harness and tool mapping so the **Orchestrator agent** can choose, create, and execute work, including future code-writing capabilities, without hardcoded question-solving strategies.
+- A **Harness adapter** maps Cereal-owned **Agent definitions** to a concrete **Agent harness** without making Detection, Evidence, Analysis, or Validation import that harness.
+- The first **Harness adapter** slice maps inert **Agent definition** configuration only and defers runtime tool binding.
+- Deferred **Agent definition** fields should be exposed structurally by a **Harness adapter** result rather than silently dropped or treated as runtime behavior.
+- The first Deep Agents **Harness adapter** should return a Cereal-owned typed result before rendering any plain framework dictionary.
+- The first Deep Agents **Harness adapter** lives in `cereal.agents.deepagents_adapter` and stays pure.
+- Cereal should not add the Deep Agents package dependency until runtime harness composition actually imports it.
+- A subagent **Harness adapter** should raise `ValueError` if given an `orchestrator` **Agent definition**.
+- Deep Agents is the first **Agent harness** target for local integration because it already bundles planning, subagents, skills, and context/filesystem concepts.
+- The first **Agent harness** runtime composition should support a local Ollama smoke invocation with `qwen2.5:7b`, while automated tests use injected fakes.
+- The **Orchestrator model** is loaded from **Orchestrator settings** rather than hardcoded in the harness runtime or passed as a broad CLI argument.
+- The first **Orchestrator settings** shape requires `orchestrator.model`, for example `ollama:qwen2.5:7b`.
+- First-slice **Orchestrator settings** include only the **Orchestrator model**; other model/runtime knobs wait until behavior requires them.
+- `orchestrator.model` is required in the **Configuration file** once **Orchestrator settings** exist; Cereal should not hide a default model in code.
+- `uv run cereal --agent orchestrator` is the first narrow local smoke path for the **Orchestrator agent**; arbitrary agent names and prompts are out of scope for that slice.
+- The first **Orchestrator agent** smoke prompt is developer verification code, not **Agent definition** content or **Orchestrator settings**.
+- LangGraph may be used as the lower-level graph/orchestration layer under or beside Deep Agents, but it is not itself a Cereal domain concept.
+- LangSmith Deployment is managed hosting and observability infrastructure; local Deep Agents or LangGraph library usage should not require it.
 - **Analysis** composition may coordinate **Detection store** queries and **Evidence window** retrieval without moving store access into **Evidence**.
 - **Analysis** owns orchestration over domain ports, not canonical domain state.
 - **Analysis** should not own detection persistence, evidence frame reading rules, provider-specific VLM clients, prompt internals, long-lived memory, or watch/task lifecycle.
@@ -384,6 +430,8 @@ Source
 
 Agent definition
   -> Agent registry
+  -> Harness adapter
+  -> Agent harness
 ```
 
 - `cereal.detection` owns **Detection event** creation, storage, YOLO adapter boundaries, detection querying, and preview overlays.
@@ -391,6 +439,7 @@ Agent definition
 - `cereal.analysis` owns composition across **Detection store**, **Evidence window** retrieval, and **Visual validator** calls.
 - `cereal.validation` owns provider-free **Visual claim**, **Visual validation**, and **Visual validator** contracts.
 - `cereal.agents` owns provider-free **Agent definition** loading and static **Agent registry** lookup.
+- `cereal.agents` owns a pure **Harness adapter** that maps **Agent definitions** to Deep Agents subagent configuration without instantiating a live model.
 - `cereal.media` still owns **Source adapter**, **Preview window**, and **Recording artifact** mechanics.
 - `uv run cereal` runs the first-source detection path; `task dev` runs it with **Detection overlays** enabled.
 - `cereal detections` / `task detections` inspect stored **Detection events**.
@@ -434,7 +483,11 @@ Agent definition
 - Agent creation scope is intentionally staged — resolved: first use predefined **Validation roles** for testable **Visual validations**, while leaving long-term room for the **Orchestrator agent** to create and manage its own **Specialized subagents**.
 - "Lego agent", "Agent building block", and "Agent bundle" were useful conversationally but overloaded — resolved: use **Agent definition** for the packaged `.agent`-style unit and align delegation language with Deep Agents **Subagents**.
 - "Specialist agent" and "expert agent" were ambiguous against Deep Agents terminology — resolved: use **Specialized subagent** for focused delegated agents.
+- "Vehicle color validator" was used only as an illustrative example — resolved: do not add example-specific subagents yet; use a generic **Detection lookup subagent** first.
 - Agent registry scope was ambiguous between a runtime Deep Agents integration and a provider-free catalog — resolved: first add a static in-memory **Agent registry** over loaded local **Agent definitions**.
+- LangGraph cost and ownership were ambiguous — resolved: LangGraph is the open-source graph/orchestration library, while LangSmith Deployment is the managed paid hosting/observability path formerly called LangGraph Platform.
+- Agent harness coupling was ambiguous — resolved: add a **Harness adapter** boundary before runtime orchestration so Cereal's core domains stay framework-independent.
+- Deep Agents ADR scope was ambiguous — resolved: defer an ADR until Cereal adds the runtime harness dependency or other harder-to-reverse composition.
 - First implementation focus was ambiguous between agents, vectors, tracking, and persistence — resolved: start with the **Detection store** fed by YOLO-backed **Detection events**, then break that domain into child tasks after the high-level pass.
 - Detection module placement was ambiguous between media and a separate domain package — resolved: use **Detection** as a separate domain area because it consumes media **Frames** but owns persisted model observations.
 - Background processing scope was ambiguous for the first detection slice — resolved: first run detection over the first configured **Source**, while the future architecture keeps continuous background detection over active **Sources** as the target.

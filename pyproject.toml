@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Cereal command-line tool"
 requires-python = ">=3.14"
 dependencies = [
+    "deepagents>=0.6.6",
+    "langchain-ollama>=1.1.0",
     "opencv-python>=4.13.0.92",
     "pydantic-settings[yaml]>=2.14.1",
     "ultralytics>=8.4.55",

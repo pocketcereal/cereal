@@ -1,4 +1,6 @@
 storage: data/storage
+orchestrator:
+  model: ollama:qwen2.5:7b
 sources:
   - name: camera
     uri: device:0

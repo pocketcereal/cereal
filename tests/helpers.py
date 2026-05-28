@@ -14,13 +14,14 @@ if TYPE_CHECKING:
 ConfigSource = tuple[str, str] | tuple[str, str, str]
 
 
-def write_config(
+def write_config(  # noqa: PLR0913
     config_path: Path,
     *,
     storage: Path,
     source_name: str = "sample",
     source_uri: str | None = None,
     sources: Sequence[ConfigSource] | None = None,
+    orchestrator_model: str = "ollama:qwen2.5:7b",
 ) -> None:
     """Write a minimal valid Cereal settings file."""
     configured_sources = sources
@@ -32,6 +33,8 @@ def write_config(
     config_path.write_text(
         f"""
 storage: {storage}
+orchestrator:
+  model: {orchestrator_model}
 sources:
 {source_lines}
 """.strip(),

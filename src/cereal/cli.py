@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import logging
+import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from cereal.agents import AgentRegistry, load_agent_definition
+from cereal.agents.deepagents_runtime import (
+    InvokableAgent,
+    compose_orchestrator_agent,
+    run_orchestrator_smoke,
+)
 from cereal.detection.query import DetectionQueryOptions, run_detection_query
 from cereal.detection.runtime import run_detection_preview
 from cereal.settings import DEFAULT_CONFIG_PATH, Settings, load_settings
@@ -28,6 +35,7 @@ class CliOptions:
     overlays_enabled: bool = False
     command: str = "run"
     detection_query: DetectionQueryOptions | None = None
+    agent_name: str | None = None
 
 
 def run(
@@ -58,6 +66,7 @@ def main(
     *,
     preview: Callable[..., None] = run_detection_preview,
     query: Callable[[Settings, DetectionQueryOptions], int] = run_detection_query,
+    agent_smoke: Callable[[Settings, str], int] | None = None,
 ) -> int:
     """Run the Cereal process entrypoint."""
     options = parse_cli_options(argv)
@@ -67,6 +76,12 @@ def main(
             msg = "detection query options are required"
             raise RuntimeError(msg)
         return query(settings, options.detection_query)
+    if options.command == "agent":
+        if options.agent_name is None:
+            msg = "agent name is required"
+            raise RuntimeError(msg)
+        smoke = agent_smoke or run_agent_smoke
+        return smoke(settings, options.agent_name)
 
     return run(
         settings,
@@ -89,6 +104,12 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
         action="store_true",
         help="draw sampled Detection overlays in the Preview window",
     )
+    parser.add_argument(
+        "--agent",
+        dest="agent_name",
+        choices=("orchestrator",),
+        help="run a narrow local Agent smoke path",
+    )
     subparsers = parser.add_subparsers(dest="command")
     detections_parser = subparsers.add_parser(
         "detections",
@@ -106,6 +127,9 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
     parser.set_defaults(preview_enabled=True)
     namespace = parser.parse_args(args)
     detection_query = None
+    command = namespace.command or "run"
+    if namespace.agent_name is not None:
+        command = "agent"
     if namespace.command == "detections":
         detection_query = DetectionQueryOptions(
             source_name=namespace.source_name,
@@ -122,11 +146,30 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
         config_path=getattr(namespace, "detections_config_path", None) or namespace.config_path,
         preview_enabled=namespace.preview_enabled,
         overlays_enabled=namespace.overlays_enabled,
-        command=namespace.command or "run",
+        command=command,
         detection_query=detection_query,
+        agent_name=namespace.agent_name,
     )
 
 
 def _parse_datetime(value: str) -> datetime:
     """Parse a CLI ISO datetime, accepting Z for UTC."""
     return datetime.fromisoformat(value)
+
+
+def run_agent_smoke(settings: Settings, agent_name: str) -> int:
+    """Run a local Agent smoke path."""
+    if agent_name != "orchestrator":
+        msg = f"unsupported agent smoke target: {agent_name}"
+        raise ValueError(msg)
+
+    orchestrator = load_agent_definition("agents/orchestrator.agent")
+    detection_lookup = load_agent_definition("agents/detection-lookup.agent")
+    agent = compose_orchestrator_agent(
+        orchestrator,
+        AgentRegistry((detection_lookup,)),
+        settings.orchestrator,
+    )
+    result = run_orchestrator_smoke(cast("InvokableAgent", agent))
+    sys.stdout.write(f"{result}\n")
+    return 0
