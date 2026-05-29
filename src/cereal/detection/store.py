@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from cereal.detection.types import BoundingBox, DetectionEvent
@@ -13,7 +14,13 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-__all__ = ["DetectionEventQuery", "DetectionStore", "SqliteDetectionStore"]
+__all__ = [
+    "DetectionEventQuery",
+    "DetectionLabelCount",
+    "DetectionLabelQuery",
+    "DetectionStore",
+    "SqliteDetectionStore",
+]
 
 
 @dataclass(frozen=True)
@@ -30,6 +37,27 @@ class DetectionEventQuery:
     limit: int | None = None
 
 
+@dataclass(frozen=True)
+class DetectionLabelQuery:
+    """Structured Detection label-count query."""
+
+    source_name: str | None = None
+    observed_time_start: datetime | None = None
+    observed_time_end: datetime | None = None
+    media_time_start: int | None = None
+    media_time_end: int | None = None
+    min_confidence: float | None = None
+    limit: int | None = None
+
+
+@dataclass(frozen=True)
+class DetectionLabelCount:
+    """Detection event count for one detector label."""
+
+    class_name: str
+    event_count: int
+
+
 class DetectionStore(Protocol):
     """Append-only Detection event store."""
 
@@ -38,6 +66,9 @@ class DetectionStore(Protocol):
 
     def query(self, query: DetectionEventQuery) -> list[DetectionEvent]:
         """Return Detection events matching the query."""
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
+        """Return detector labels with event counts matching the query."""
 
     def close(self) -> None:
         """Release store resources."""
@@ -49,7 +80,8 @@ class SqliteDetectionStore:
     def __init__(self, database_path: Path) -> None:
         """Open the database and initialize the Detection schema."""
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(database_path)
+        self._lock = Lock()
+        self.connection = sqlite3.connect(database_path, check_same_thread=False)
         self._initialize_schema()
 
     def insert_many(self, events: Sequence[DetectionEvent]) -> list[DetectionEvent]:
@@ -57,31 +89,32 @@ class SqliteDetectionStore:
         if not events:
             return []
 
-        self.connection.executemany(
-            """
-            INSERT INTO detection_events (
-                source_name,
-                observed_time_s,
-                media_time_ms,
-                frame_index,
-                frame_width,
-                frame_height,
-                evidence_uri,
-                model_name,
-                class_id,
-                class_name,
-                confidence,
-                x1,
-                y1,
-                x2,
-                y2,
-                track_id
+        with self._lock:
+            self.connection.executemany(
+                """
+                INSERT INTO detection_events (
+                    source_name,
+                    observed_time_s,
+                    media_time_ms,
+                    frame_index,
+                    frame_width,
+                    frame_height,
+                    evidence_uri,
+                    model_name,
+                    class_id,
+                    class_name,
+                    confidence,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    track_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [_event_to_row(event) for event in events],
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [_event_to_row(event) for event in events],
-        )
-        self.connection.commit()
+            self.connection.commit()
         return list(events)
 
     def query(self, query: DetectionEventQuery) -> list[DetectionEvent]:
@@ -119,56 +152,97 @@ class SqliteDetectionStore:
             sql = f"{sql} LIMIT ?"
             parameters.append(query.limit)
 
-        rows = self.connection.execute(sql, parameters).fetchall()
+        with self._lock:
+            rows = self.connection.execute(sql, parameters).fetchall()
         return [_row_to_event(row) for row in rows]
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
+        """Return label event counts matching optional structured filters."""
+        where_clauses: list[str] = []
+        parameters: list[object] = []
+
+        if query.source_name is not None:
+            where_clauses.append("source_name = ?")
+            parameters.append(query.source_name)
+        if query.observed_time_start is not None:
+            where_clauses.append("observed_time_s >= ?")
+            parameters.append(_datetime_to_utc_iso(query.observed_time_start))
+        if query.observed_time_end is not None:
+            where_clauses.append("observed_time_s <= ?")
+            parameters.append(_datetime_to_utc_iso(query.observed_time_end))
+        if query.media_time_start is not None:
+            where_clauses.append("media_time_ms >= ?")
+            parameters.append(query.media_time_start)
+        if query.media_time_end is not None:
+            where_clauses.append("media_time_ms <= ?")
+            parameters.append(query.media_time_end)
+        if query.min_confidence is not None:
+            where_clauses.append("confidence >= ?")
+            parameters.append(query.min_confidence)
+
+        sql = "SELECT class_name, COUNT(*) AS event_count FROM detection_events"
+        if where_clauses:
+            sql = f"{sql} WHERE {' AND '.join(where_clauses)}"
+        sql = f"{sql} GROUP BY class_name ORDER BY event_count DESC, class_name"
+        if query.limit is not None:
+            sql = f"{sql} LIMIT ?"
+            parameters.append(query.limit)
+
+        with self._lock:
+            rows = self.connection.execute(sql, parameters).fetchall()
+        return [
+            DetectionLabelCount(class_name=str(row[0]), event_count=int(row[1])) for row in rows
+        ]
 
     def close(self) -> None:
         """Close the SQLite connection."""
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
     def _initialize_schema(self) -> None:
-        self.connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS detection_schema_version (
-                version INTEGER PRIMARY KEY CHECK (version = 1)
-            );
+        with self._lock:
+            self.connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS detection_schema_version (
+                    version INTEGER PRIMARY KEY CHECK (version = 1)
+                );
 
-            INSERT OR IGNORE INTO detection_schema_version (version) VALUES (1);
+                INSERT OR IGNORE INTO detection_schema_version (version) VALUES (1);
 
-            CREATE TABLE IF NOT EXISTS detection_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_name TEXT NOT NULL,
-                observed_time_s TEXT,
-                media_time_ms INTEGER,
-                frame_index INTEGER NOT NULL,
-                frame_width INTEGER NOT NULL,
-                frame_height INTEGER NOT NULL,
-                evidence_uri TEXT NOT NULL,
-                model_name TEXT NOT NULL,
-                class_id INTEGER NOT NULL,
-                class_name TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                x1 REAL NOT NULL,
-                y1 REAL NOT NULL,
-                x2 REAL NOT NULL,
-                y2 REAL NOT NULL,
-                track_id TEXT,
-                CHECK (observed_time_s IS NOT NULL OR media_time_ms IS NOT NULL)
-            );
+                CREATE TABLE IF NOT EXISTS detection_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_name TEXT NOT NULL,
+                    observed_time_s TEXT,
+                    media_time_ms INTEGER,
+                    frame_index INTEGER NOT NULL,
+                    frame_width INTEGER NOT NULL,
+                    frame_height INTEGER NOT NULL,
+                    evidence_uri TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    class_id INTEGER NOT NULL,
+                    class_name TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    x1 REAL NOT NULL,
+                    y1 REAL NOT NULL,
+                    x2 REAL NOT NULL,
+                    y2 REAL NOT NULL,
+                    track_id TEXT,
+                    CHECK (observed_time_s IS NOT NULL OR media_time_ms IS NOT NULL)
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_detection_events_source_observed_time
-                ON detection_events (source_name, observed_time_s);
-            CREATE INDEX IF NOT EXISTS idx_detection_events_source_media_time
-                ON detection_events (source_name, media_time_ms);
-            CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name
-                ON detection_events (source_name, class_name);
-            CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name_observed_time
-                ON detection_events (source_name, class_name, observed_time_s);
-            CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name_media_time
-                ON detection_events (source_name, class_name, media_time_ms);
-            """,
-        )
-        self.connection.commit()
+                CREATE INDEX IF NOT EXISTS idx_detection_events_source_observed_time
+                    ON detection_events (source_name, observed_time_s);
+                CREATE INDEX IF NOT EXISTS idx_detection_events_source_media_time
+                    ON detection_events (source_name, media_time_ms);
+                CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name
+                    ON detection_events (source_name, class_name);
+                CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name_observed_time
+                    ON detection_events (source_name, class_name, observed_time_s);
+                CREATE INDEX IF NOT EXISTS idx_detection_events_source_class_name_media_time
+                    ON detection_events (source_name, class_name, media_time_ms);
+                """,
+            )
+            self.connection.commit()
 
 
 def _event_to_row(event: DetectionEvent) -> tuple[object, ...]:

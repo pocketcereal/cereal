@@ -58,6 +58,20 @@ def test_parse_cli_options_accepts_orchestrator_agent() -> None:
     assert options.agent_name == "orchestrator"
 
 
+def test_parse_cli_options_accepts_detection_lookup_agent() -> None:
+    options = parse_cli_options(["--agent", "detection-lookup"])
+
+    assert options.command == "agent"
+    assert options.agent_name == "detection-lookup"
+
+
+def test_parse_cli_options_accepts_orchestrator_delegation_agent() -> None:
+    options = parse_cli_options(["--agent", "orchestrator-delegation"])
+
+    assert options.command == "agent"
+    assert options.agent_name == "orchestrator-delegation"
+
+
 def test_parse_cli_options_accepts_detection_query_filters() -> None:
     options = parse_cli_options(
         [
@@ -166,12 +180,32 @@ def test_main_runs_orchestrator_agent_smoke(tmp_path: Path) -> None:
     assert smoked == ["orchestrator:fake-model"]
 
 
+def test_main_runs_detection_lookup_agent_smoke(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage", orchestrator_model="fake-model")
+    smoked: list[str] = []
+
+    def agent_smoke(settings: Settings, agent_name: str) -> int:
+        smoked.append(f"{agent_name}:{settings.orchestrator.model}")
+        return 0
+
+    assert (
+        main(
+            ["--config", str(config_path), "--agent", "detection-lookup"],
+            preview=noop_preview,
+            agent_smoke=agent_smoke,
+        )
+        == 0
+    )
+    assert smoked == ["detection-lookup:fake-model"]
+
+
 def test_main_rejects_unsupported_agent_name(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.yaml"
     write_config(config_path, storage=tmp_path / "storage")
 
     with pytest.raises(SystemExit):
-        main(["--config", str(config_path), "--agent", "detection-lookup"], preview=noop_preview)
+        main(["--config", str(config_path), "--agent", "missing-agent"], preview=noop_preview)
 
 
 def test_main_rejects_conflicting_preview_flags(tmp_path: Path) -> None:

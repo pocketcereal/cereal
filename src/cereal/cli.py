@@ -10,12 +10,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from cereal.agents import AgentRegistry, load_agent_definition
+from cereal.agents import AgentRegistry, AgentToolCatalog, load_agent_definition
 from cereal.agents.deepagents_runtime import (
     InvokableAgent,
     compose_orchestrator_agent,
     run_orchestrator_smoke,
 )
+from cereal.agents.detection_lookup_smoke import run_detection_lookup_tool_smoke
+from cereal.agents.orchestrator_delegation_smoke import run_orchestrator_delegation_smoke
 from cereal.detection.query import DetectionQueryOptions, run_detection_query
 from cereal.detection.runtime import run_detection_preview
 from cereal.settings import DEFAULT_CONFIG_PATH, Settings, load_settings
@@ -107,7 +109,7 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
     parser.add_argument(
         "--agent",
         dest="agent_name",
-        choices=("orchestrator",),
+        choices=("orchestrator", "detection-lookup", "orchestrator-delegation"),
         help="run a narrow local Agent smoke path",
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -159,16 +161,26 @@ def _parse_datetime(value: str) -> datetime:
 
 def run_agent_smoke(settings: Settings, agent_name: str) -> int:
     """Run a local Agent smoke path."""
+    if agent_name == "detection-lookup":
+        result = run_detection_lookup_tool_smoke(settings.orchestrator)
+        sys.stdout.write(f"{result}\n")
+        return 0
+
+    if agent_name == "orchestrator-delegation":
+        result = run_orchestrator_delegation_smoke(settings.orchestrator)
+        sys.stdout.write(f"{result.output}\n")
+        return 0
+
     if agent_name != "orchestrator":
         msg = f"unsupported agent smoke target: {agent_name}"
         raise ValueError(msg)
 
     orchestrator = load_agent_definition("agents/orchestrator.agent")
-    detection_lookup = load_agent_definition("agents/detection-lookup.agent")
     agent = compose_orchestrator_agent(
         orchestrator,
-        AgentRegistry((detection_lookup,)),
+        AgentRegistry(()),
         settings.orchestrator,
+        AgentToolCatalog({}),
     )
     result = run_orchestrator_smoke(cast("InvokableAgent", agent))
     sys.stdout.write(f"{result}\n")

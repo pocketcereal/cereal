@@ -46,7 +46,7 @@ Create the first local **Orchestrator agent** composition using the selected
 - [x] Add a local Ollama smoke path that invokes the composed **Agent harness**
       with a tiny non-video prompt.
 - [x] Use `OLLAMA_HOST` when present and configure the local smoke model as
-      `ollama:qwen2.5:7b`.
+      `ollama:qwen3:8b`.
 - [x] Add `uv run cereal --agent orchestrator` as a narrow local smoke path.
 - [x] Support only `--agent orchestrator` in this issue.
 - [x] Add `task agent-smoke` as a developer shortcut for the local smoke path.
@@ -73,7 +73,7 @@ Create the first local **Orchestrator agent** composition using the selected
   not broad user-question solving.
 - Automated checks should not require a running Ollama service.
 - Manual smoke verification should use the locally exposed Ollama service and
-  the installed `qwen2.5:7b` model.
+  the installed `qwen3:8b` model.
 - The smoke invocation should use a tiny fixed prompt such as "Reply with
   exactly: ready"; arbitrary prompt input is out of scope.
 - The smoke prompt should live as a code constant in the smoke command/runtime
@@ -100,8 +100,8 @@ Create the first local **Orchestrator agent** composition using the selected
   is YOLO-backed and that YOLO label semantics are relevant, but the Agent
   definition name should not be `YOLOAgent`.
 - Do not bind real Detection store tools in this issue. `detection-lookup`
-  should be registered as an available **Specialized subagent**, while concrete
-  tool binding and isolated tool-bearing subagent tests belong to a later slice.
+  should be registered as an available **Specialized subagent**; concrete tool
+  binding and isolated tool-bearing subagent tests are handled by issue 03.
 - Architecture guardrail: each agent must be testable through its own
   composition boundary before it is depended on by the **Orchestrator agent**.
 - Prefer pure functions for first composition helpers. Do not introduce a broad
@@ -114,7 +114,7 @@ Create the first local **Orchestrator agent** composition using the selected
 
   ```yaml
   orchestrator:
-    model: ollama:qwen2.5:7b
+    model: ollama:qwen3:8b
   ```
 - Do not add temperature, max tokens, timeout, provider config, tool policy,
   memory paths, subagent selection, or permissions until runtime behavior needs

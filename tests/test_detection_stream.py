@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from cereal.detection.store import DetectionLabelCount, DetectionLabelQuery
+
 FRAME_HEIGHT = 24
 FRAME_WIDTH = 32
 SAMPLE_INTERVAL_S = 3.0
@@ -351,6 +353,10 @@ class FakeStore:
         return batch
 
     def query(self, query: object) -> list[DetectionEvent]:
+        del query
+        return []
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
         del query
         return []
 

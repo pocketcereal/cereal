@@ -1,7 +1,7 @@
 ---
 id: capture-device-preview
 title: Capture device preview
-status: approved
+status: done
 external_ref:
 ---
 

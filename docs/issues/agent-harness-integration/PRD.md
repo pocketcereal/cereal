@@ -1,7 +1,7 @@
 ---
 id: agent-harness-integration
 title: Agent harness integration
-status: draft
+status: approved
 external_ref:
 ---
 
@@ -9,10 +9,11 @@ external_ref:
 
 ## Problem Statement
 
-Cereal has provider-free **Agent definitions** and a static **Agent registry**,
-but no **Agent harness** integration yet. The next risk is coupling Cereal's
-Detection, Evidence, Analysis, and Validation domains directly to a specific
-agent framework before proving the boundary.
+Cereal has provider-free **Agent definitions**, a static **Agent registry**, a
+Deep Agents **Agent harness** runtime, and isolated `detection-lookup` tool-use
+smoke coverage. The next risk is proving **Orchestrator agent** delegation
+through a tool-bearing **Specialized subagent** without turning the smoke path
+into a hardcoded Python workflow.
 
 The **Orchestrator agent** should be able to choose an analysis strategy from
 available tools and **Specialized subagents**. That strategy must not become a
@@ -21,7 +22,7 @@ not leak into the core Cereal domains.
 
 ## Solution
 
-Introduce an adapter-first **Agent harness** path:
+Continue the adapter-first **Agent harness** path:
 
 - Treat LangChain Deep Agents as the first **Agent harness** target.
 - Keep Cereal-owned **Agent definitions** provider-free.
@@ -29,7 +30,7 @@ Introduce an adapter-first **Agent harness** path:
   configuration shapes.
 - Fail or defer explicitly when Cereal fields do not have a clear harness
   mapping yet.
-- Add runtime composition only after the adapter boundary is testable without a
+- Keep runtime composition testable with injected fakes before relying on a
   live model provider.
 - Load the first **Orchestrator agent** runtime values from Cereal's existing
   **Configuration file**.
@@ -49,10 +50,28 @@ Implemented:
   `specialized-subagent` definitions.
 - Local Ollama smoke path through `uv run cereal --agent orchestrator` and
   `task agent-smoke`.
+- Direct local Ollama smoke path through `uv run cereal --agent detection-lookup`
+  and `task detection-lookup-smoke`.
+- Self-contained `detection-lookup` tool declaration with `find_detection_events`
+  and `list_detection_labels`.
+- Agent tool catalog resolution from declared tool names to Python callables.
+- Cereal-owned **Agent runtime binding** for pairing **Agent definitions** with
+  resolved tools before harness rendering.
+- Deep Agents subagent rendering from **Agent runtime bindings**, including
+  tool-bearing `detection-lookup` subagent config.
+- First **Agent run trace** value types under `cereal.agents.trace`.
+- Deterministic Orchestrator-to-`detection-lookup` delegation smoke coverage
+  with trace assertions for subagent delegation and `list_detection_labels`
+  tool use against seeded `smoke_fixture`.
+- Explicit local delegation smoke path through
+  `uv run cereal --agent orchestrator-delegation` and
+  `task orchestrator-delegation-smoke`.
+- Detection store label listing with event counts.
+- SQLite Detection store access serialized for LangGraph worker-thread tool
+  calls.
 
 Not implemented:
 
-- Tool-bearing **Specialized subagent** delegation.
 - User-question planning.
 
 ## Key Decisions
@@ -63,7 +82,7 @@ Not implemented:
   Agents.
 - LangSmith Deployment is managed hosting and observability infrastructure; it
   is not required for local library-level Deep Agents or LangGraph use.
-- The next slice should test configuration mapping only, with no provider key,
+- The first slice tested configuration mapping only, with no provider key,
   model call, or hosted service.
 - This decision does not need an ADR yet because the first slice is a
   reversible pure adapter. Reconsider an ADR when Cereal adds the runtime
@@ -74,8 +93,20 @@ Not implemented:
   an ad hoc CLI argument.
 - **Orchestrator settings** live in the existing Cereal **Configuration file**
   under `orchestrator:`.
-- The next slice should bind and test `detection-lookup` tools in isolation
-  before broad visual-query planning.
+- Detection lookup tools should be bound and tested in isolation before broad
+  visual-query planning.
+- Direct `detection-lookup` tool use should be proven with a local
+  tool-capable Ollama model before Orchestrator delegation.
+- `qwen3:8b` is the current local Ollama smoke model because it fits the local
+  12GB GPU budget and successfully called the Detection lookup tool in smoke.
+- Deep Agents/LangGraph may execute tool calls in worker threads, so injected
+  store implementations must be safe at that boundary.
+- **Orchestrator agent** delegation to `detection-lookup` is the completed
+  boundary before visual-query planning; Evidence window retrieval and Visual
+  validation stayed out of that delegation slice.
+- Orchestrator delegation means the **Orchestrator agent** invokes a
+  harness-visible **Specialized subagent** or capability; direct Python routing
+  inside the smoke function is not enough.
 
 ## Out of Scope
 

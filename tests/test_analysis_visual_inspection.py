@@ -10,7 +10,12 @@ import numpy as np
 import pytest
 
 from cereal.analysis.visual_inspection import run_visual_inspection_query
-from cereal.detection.store import DetectionEventQuery, SqliteDetectionStore
+from cereal.detection.store import (
+    DetectionEventQuery,
+    DetectionLabelCount,
+    DetectionLabelQuery,
+    SqliteDetectionStore,
+)
 from cereal.detection.types import BoundingBox, DetectionEvent
 from cereal.evidence.retrieval import EvidenceFrameUnavailableError
 from cereal.evidence.types import EvidenceFrame
@@ -161,6 +166,10 @@ class FakeDetectionStore:
     def query(self, query: DetectionEventQuery) -> list[DetectionEvent]:
         self.queries.append(query)
         return list(self.events)
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
+        del query
+        return []
 
     def close(self) -> None:
         pass

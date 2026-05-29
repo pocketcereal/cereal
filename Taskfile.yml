@@ -13,6 +13,14 @@ tasks:
     cmds:
       - uv run cereal --agent orchestrator
 
+  detection-lookup-smoke:
+    cmds:
+      - uv run cereal --agent detection-lookup
+
+  orchestrator-delegation-smoke:
+    cmds:
+      - uv run cereal --agent orchestrator-delegation
+
   lint:
     cmds:
       - uv run ruff format --check

@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from cereal.analysis.evidence_selection import select_evidence_windows
-from cereal.detection.store import DetectionEventQuery
+from cereal.detection.store import DetectionEventQuery, DetectionLabelCount, DetectionLabelQuery
 from cereal.detection.types import BoundingBox, DetectionEvent
 from cereal.evidence.retrieval import EvidenceFrameUnavailableError
 from cereal.evidence.types import EvidenceFrame
@@ -101,6 +101,10 @@ class FakeDetectionStore:
     def query(self, query: DetectionEventQuery) -> list[DetectionEvent]:
         self.queries.append(query)
         return list(self.events)
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
+        del query
+        return []
 
     def close(self) -> None:
         pass

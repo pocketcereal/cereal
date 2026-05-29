@@ -10,7 +10,10 @@ import numpy as np
 import pytest
 
 from cereal.detection.runtime import default_detection_database_path, run_detection_preview
-from cereal.detection.store import DetectionEventQuery, SqliteDetectionStore
+from cereal.detection.store import (
+    DetectionEventQuery,
+    SqliteDetectionStore,
+)
 from cereal.detection.types import (
     BoundingBox,
     DetectionCandidate,
@@ -27,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from cereal.detection.store import DetectionLabelCount, DetectionLabelQuery
     from cereal.settings import SourceSettings
 
 FRAME_HEIGHT = 24
@@ -402,6 +406,10 @@ class FakeStore:
         return batch
 
     def query(self, query: object) -> list[DetectionEvent]:
+        del query
+        return []
+
+    def list_labels(self, query: DetectionLabelQuery) -> list[DetectionLabelCount]:
         del query
         return []
 

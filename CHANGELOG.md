@@ -30,6 +30,17 @@ release is cut.
 - `cereal.agents.deepagents_runtime` with pure Deep Agents composition helpers,
   repo-local `orchestrator` and `detection-lookup` Agent definitions, and a
   local Ollama Orchestrator smoke path.
+- `cereal.agents.detection_lookup` with dependency-bound
+  `find_detection_events` and `list_detection_labels` tools for the
+  `detection-lookup` Specialized subagent.
+- Direct `detection-lookup` Agent smoke path with a seeded Detection store,
+  bound lookup tools, `qwen3:8b`, and `task detection-lookup-smoke`.
+- `AgentToolCatalog` for resolving Agent definition tool names to callables.
+- `AgentRuntimeBinding` and first `cereal.agents.trace` values for
+  harness-visible Agent run traces.
+- Orchestrator-to-`detection-lookup` delegation smoke path with seeded labels,
+  trace assertions, `uv run cereal --agent orchestrator-delegation`, and
+  `task orchestrator-delegation-smoke`.
 - Required `orchestrator.model` settings loaded from the Cereal YAML
   configuration file.
 - Draft `agent-harness-integration` PRD and issue path for mapping Agent
@@ -37,6 +48,10 @@ release is cut.
   coupling.
 - Added the next `agent-harness-integration` issue path for isolated
   `detection-lookup` tool binding before visual-query planning.
+- Added the next `agent-harness-integration` issue path for direct
+  `detection-lookup` LLM tool-use smoke before Orchestrator delegation.
+- Split the next `agent-harness-integration` path so Orchestrator-to-
+  `detection-lookup` delegation is proven before visual-query planning.
 - `cereal detections` query command and `task detections` shortcut for local
   Detection store inspection.
 - `cereal.media` package with `file:` and `device:` source adapters, a
@@ -71,6 +86,13 @@ release is cut.
 - Added `--overlays` so the Preview window can draw sampled Detection boxes.
 - Added operational Detection logs for startup, source opening, sampled frame
   results, and persisted event counts.
+- Detection store now supports grouped detector-label listing with Detection
+  event counts.
+- Default local Agent smoke model changed to `ollama:qwen3:8b` for tool-calling
+  verification.
+- Documentation now reflects the completed source-recording and capture-device
+  PRDs, current Agent harness issue status, and the `write: true` requirement
+  for non-file Detection evidence.
 
 ### Fixed
 
@@ -79,6 +101,8 @@ release is cut.
   silently creating recording evidence.
 - Preview overlay samples are persisted before honoring a stop request.
 - SQLite Detection store creation now creates missing parent directories.
+- SQLite Detection store access now works when Agent harness tool calls run in a
+  worker thread.
 
 ### Dependencies
 

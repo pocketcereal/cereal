@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from cereal.detection.store import DetectionEventQuery, DetectionStore, SqliteDetectionStore
+from cereal.detection.store import (
+    DetectionEventQuery,
+    DetectionLabelCount,
+    DetectionLabelQuery,
+    DetectionStore,
+    SqliteDetectionStore,
+)
 from cereal.detection.types import BoundingBox, DetectionEvent
 
 if TYPE_CHECKING:
@@ -137,6 +144,56 @@ def test_sqlite_detection_store_respects_limit(tmp_path: Path) -> None:
         store.close()
 
     assert queried == [first]
+
+
+def test_sqlite_detection_store_lists_labels_with_counts(tmp_path: Path) -> None:
+    store: DetectionStore = SqliteDetectionStore(tmp_path / "cereal.sqlite3")
+    observed_time = datetime(2026, 5, 24, 12, 30, tzinfo=UTC)
+    car = make_event(source_name="camera", class_name="car", observed_time=observed_time)
+    other_car = make_event(source_name="camera", class_name="car", observed_time=observed_time)
+    person = make_event(source_name="camera", class_name="person", observed_time=observed_time)
+    old_truck = make_event(
+        source_name="camera",
+        class_name="truck",
+        observed_time=observed_time - timedelta(hours=1),
+    )
+
+    try:
+        store.insert_many([car, person, other_car, old_truck])
+        labels = store.list_labels(
+            DetectionLabelQuery(
+                source_name="camera",
+                observed_time_start=observed_time - timedelta(minutes=1),
+            ),
+        )
+    finally:
+        store.close()
+
+    assert labels == [
+        DetectionLabelCount(class_name="car", event_count=2),
+        DetectionLabelCount(class_name="person", event_count=1),
+    ]
+
+
+def test_sqlite_detection_store_supports_worker_thread_label_queries(tmp_path: Path) -> None:
+    store: DetectionStore = SqliteDetectionStore(tmp_path / "cereal.sqlite3")
+
+    try:
+        store.insert_many(
+            [
+                make_event(source_name="camera", class_name="car", confidence=0.91),
+                make_event(source_name="camera", class_name="person", confidence=0.82),
+            ],
+        )
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            labels = executor.submit(store.list_labels, DetectionLabelQuery()).result()
+    finally:
+        store.close()
+
+    assert labels == [
+        DetectionLabelCount(class_name="car", event_count=1),
+        DetectionLabelCount(class_name="person", event_count=1),
+    ]
 
 
 def test_sqlite_detection_store_records_schema_version(tmp_path: Path) -> None:

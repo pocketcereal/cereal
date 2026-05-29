@@ -192,6 +192,22 @@ _Avoid_: Agent building block, Lego agent, agent bundle, prompt only
 A catalog of available **Agent definitions** that the **Orchestrator agent** can inspect or select from.
 _Avoid_: Tool registry, plugin registry, import list
 
+**Agent tool catalog**:
+A resolver that maps tool names declared by an **Agent definition** to Python callables exposed at the **Agent harness** boundary.
+_Avoid_: Hidden Orchestrator wiring, prompt-only capability, persistence owner
+
+**Agent runtime binding**:
+A Cereal-owned runtime value that pairs an **Agent definition** with resolved tools and other injected dependencies before a specific **Agent harness** renders it.
+_Avoid_: Deep Agents config, bound agent definition, agent instance, harness binding
+
+**Agent run trace**:
+A structured record of harness-visible agent actions during one agent invocation, such as delegated subagent calls, tool calls, tool arguments, and tool results.
+_Avoid_: Debug log, transcript, chain-of-thought, telemetry
+
+**Agent trace event**:
+One structured action in an **Agent run trace**, such as `agent_invoked`, `subagent_delegated`, `tool_called`, or `tool_returned`.
+_Avoid_: Log line, message, thought, span
+
 **Subagent**:
 An agent delegated to by the **Orchestrator agent** for focused work with its own context and tool scope.
 _Avoid_: Worker, random helper, tool
@@ -203,6 +219,14 @@ _Avoid_: Specialist agent, expert agent, worker
 **Detection lookup subagent**:
 A generic **Specialized subagent** focused on retrieving or summarizing structured Detection store details for labels, Detection events, and future Object tracks.
 _Avoid_: Vehicle-color validator, example-specific subagent, Agent building block
+
+**Detection lookup result**:
+A small serializable agent-facing result for Detection lookup tools, derived from Detection events without exposing raw domain objects directly to the agent harness.
+_Avoid_: Raw DetectionEvent, prose-only tool output, Object track count
+
+**Detection label summary**:
+A serializable label plus Detection event count returned by label discovery tools for a source or time scope.
+_Avoid_: Label ontology, semantic synonym, Object track count
 
 **Analysis**:
 The Cereal domain area that coordinates **Detection store** results, **Evidence window** retrieval, future **Visual validations**, and answer composition.
@@ -320,8 +344,33 @@ _Avoid_: File path, artifact path, storage key
 - A **Detection lookup subagent** may translate user object language into detector label candidates and query constraints, but it does not visually confirm attributes that are absent from Detection store data.
 - The first **Detection lookup subagent** Agent definition is named `detection-lookup`; YOLO awareness belongs in instructions, not in the canonical agent name.
 - **Specialized subagents** should be testable through their own composition boundaries instead of only through the **Orchestrator agent**.
+- **Specialized subagents** should be self-contained at the **Agent definition** level: instructions, declared tools, permissions, and expected usage live with the agent definition.
+- Tool implementations may live in shared Python modules, but they are attached to an agent by resolving tool names declared by that agent's **Agent definition**.
+- An **Agent runtime binding** is the Cereal-owned place where declared tool names become actual tool objects for one runtime composition.
+- **Agent runtime bindings** should be created before rendering into a specific **Agent harness** so Cereal's modular agent shape is not defined by Deep Agents dictionaries.
+- An **Agent run trace** observes harness-visible actions and artifacts, not hidden model reasoning or chain-of-thought.
+- First-slice **Agent run trace** verification belongs to tests and smoke paths; a broader observability backend can wait until the runtime surface is less fluid.
+- Agent runtime observability asks what happened during one run; evaluation asks whether the run was good enough for the task.
+- **Agent run trace** types live under `cereal.agents.trace` because they describe agent execution observability, not Detection, Evidence, Analysis, or Validation domain state.
+- The first **Agent run trace** event set is `agent_invoked`, `subagent_delegated`, `tool_called`, and `tool_returned`.
+- First-slice **Agent trace events** may include agent names, subagent names, tool names, structured tool arguments, and JSON-like tool results.
+- First-slice **Agent trace events** should not store raw full prompts or full model messages by default.
+- Detection lookup tools should return **Detection lookup results**, not raw **Detection events**, so harness-facing output stays stable and serializable.
+- Detection lookup tools receive dependencies such as a **Detection store** at construction time; they should not open databases or read **Settings** internally.
+- The first Detection lookup tools are `find_detection_events` and `list_detection_labels`, declared by `agents/detection-lookup.agent`.
+- `list_detection_labels` lets the **Detection lookup subagent** discover actual detector labels in a source/time scope; label similarity reasoning remains the agent's responsibility.
+- `list_detection_labels` returns **Detection label summaries** so the agent can see both available labels and their Detection event counts.
+- Label counting for Detection lookup belongs behind the **Detection store** port, not inside the agent tool.
+- Detection lookup tools accept structured observed-time filters as ISO-8601 strings and do not parse natural-language time phrases.
+- The `detection-lookup` composition should receive an injected tool catalog or equivalent dependency; the existing Orchestrator smoke should not require a populated Detection store yet.
+- Direct `detection-lookup` LLM tool use is proven with `qwen3:8b`, a seeded Detection store, and `task detection-lookup-smoke`.
+- Orchestrator-to-`detection-lookup` delegation is proven through a seeded smoke path and `task orchestrator-delegation-smoke`; deterministic assertions use a fake harness with an **Agent run trace**.
+- Long-term agent-facing capabilities should be registered with the **Specialized subagents** that own their focused work, not permanently accumulated as broad **Orchestrator agent** tools.
+- A small planning slice may expose a new capability directly to the **Orchestrator agent** before its owning **Specialized subagent** exists, but that is staged exposure rather than final ownership.
 - The **Orchestrator agent** may depend on a **Specialized subagent** only after that subagent's definition, harness mapping, and tool boundary can be tested in isolation.
-- The next **Agent harness** slice after Orchestrator smoke is binding and testing `detection-lookup` tools before broad visual-query planning.
+- The next **Agent harness** proof after Orchestrator-to-`detection-lookup` delegation is a visual-query planning smoke; Evidence window retrieval and Visual validation remain out of the delegation slice.
+- **Orchestrator delegation** means the **Orchestrator agent** invokes a harness-visible **Specialized subagent** or capability. Direct Python routing inside an Orchestrator smoke function does not count as delegation.
+- The **Agent harness** path binds and tests `detection-lookup` tools before broad visual-query planning.
 - The first **Agent harness** composition API should be pure functions: a generic Deep Agents composition helper plus a named **Orchestrator agent** wrapper, not a broad runtime class.
 - The first **Orchestrator agent** wrapper registers all available `specialized-subagent` definitions from the provided **Agent registry**.
 - Cereal's long-term agent architecture should provide harness and tool mapping so the **Orchestrator agent** can choose, create, and execute work, including future code-writing capabilities, without hardcoded question-solving strategies.
@@ -333,13 +382,16 @@ _Avoid_: File path, artifact path, storage key
 - Cereal should not add the Deep Agents package dependency until runtime harness composition actually imports it.
 - A subagent **Harness adapter** should raise `ValueError` if given an `orchestrator` **Agent definition**.
 - Deep Agents is the first **Agent harness** target for local integration because it already bundles planning, subagents, skills, and context/filesystem concepts.
-- The first **Agent harness** runtime composition should support a local Ollama smoke invocation with `qwen2.5:7b`, while automated tests use injected fakes.
+- The first **Agent harness** runtime composition should support local Ollama smoke invocations, while automated tests use injected fakes.
+- `qwen3:8b` is the current local Ollama smoke model because it fits the local 12GB GPU budget and successfully called the Detection lookup tool in smoke.
 - The **Orchestrator model** is loaded from **Orchestrator settings** rather than hardcoded in the harness runtime or passed as a broad CLI argument.
-- The first **Orchestrator settings** shape requires `orchestrator.model`, for example `ollama:qwen2.5:7b`.
+- The first **Orchestrator settings** shape requires `orchestrator.model`, for example `ollama:qwen3:8b`.
 - First-slice **Orchestrator settings** include only the **Orchestrator model**; other model/runtime knobs wait until behavior requires them.
 - `orchestrator.model` is required in the **Configuration file** once **Orchestrator settings** exist; Cereal should not hide a default model in code.
 - `uv run cereal --agent orchestrator` is the first narrow local smoke path for the **Orchestrator agent**; arbitrary agent names and prompts are out of scope for that slice.
+- `uv run cereal --agent detection-lookup` is the first narrow local smoke path for direct **Detection lookup subagent** tool use.
 - The first **Orchestrator agent** smoke prompt is developer verification code, not **Agent definition** content or **Orchestrator settings**.
+- Deep Agents/LangGraph may execute tool calls in worker threads, so injected store implementations must be safe at that boundary.
 - LangGraph may be used as the lower-level graph/orchestration layer under or beside Deep Agents, but it is not itself a Cereal domain concept.
 - LangSmith Deployment is managed hosting and observability infrastructure; local Deep Agents or LangGraph library usage should not require it.
 - **Analysis** composition may coordinate **Detection store** queries and **Evidence window** retrieval without moving store access into **Evidence**.
@@ -376,7 +428,7 @@ _Avoid_: File path, artifact path, storage key
 - A **Detection event** should retain enough **Evidence reference** data to recover its source **Frame** later.
 - A capture-device **Detection event** should reference a **Recording artifact** created while detection runs.
 - A file-source **Detection event** may reference the original file as its recoverable evidence artifact.
-- Detecting a capture-device **Source** should record recoverable evidence in the same run that writes **Detection events**.
+- Detecting a capture-device **Source** requires `write: true` so Cereal can record recoverable evidence in the same run that writes **Detection events**.
 - In the first recording phase, recording format details use Cereal-owned prototype defaults and are not configurable.
 - The first recording defaults write `.mp4` artifacts through ffmpeg with `libx264`, a silent AAC track, MP4 v2 branding, BT.709 color metadata, and no B-frames for local player compatibility.
 - In the first recording phase, **Writer context** is runtime-only and not part of **Settings**.
@@ -397,7 +449,7 @@ _Avoid_: File path, artifact path, storage key
 - The **Detection store** write interface is batch-only: `insert_many` accepts a sequence of **Detection events**.
 - The **Detection store** SQLite backend self-bootstraps its schema on initialization.
 - The **Detection store** SQLite file lives at `Storage root / cereal.sqlite3`.
-- Capture-device detection records evidence to a **Recording artifact** regardless of the **Write flag**.
+- Capture-device detection rejects Sources without `write: true`; it never silently records evidence against the **Write flag** contract.
 - For capture devices, frame handling order is read, write evidence, preview if enabled, detect if sampled, then store detections.
 - For file **Sources**, frame handling order is read, preview if enabled, detect if sampled, then store detections.
 - The detection stream loop is built as an independently testable unit before being composed with **Preview window** and evidence recording.
@@ -536,7 +588,7 @@ Agent definition
 - **Detection event query** class filter scope was ambiguous — resolved: filter by class name only; class ID filtering is deferred because class IDs are detector-specific.
 - **Detection store** database filename was ambiguous — resolved: `cereal.sqlite3` at `Storage root`.
 - **Detection store** index strategy was ambiguous — resolved: include composite indexes for source+observed time, source+media time, source+class name, source+class name+observed time, source+class name+media time.
-- Capture-device evidence recording and the **Write flag** were ambiguous — resolved: capture-device detection records evidence regardless of the **Write flag**; the **Write flag** controls user-requested recording only.
+- Capture-device evidence recording and the **Write flag** were ambiguous — resolved: capture-device detection requires `write: true` because persisted **Detection events** must point at recoverable evidence, and omitted **Write flag** still means no recording.
 - Detection loop architecture was ambiguous between injecting into preview and a standalone loop — resolved: build the detection stream loop as an independently testable unit, then compose it with **Preview window** and evidence recording in a separate wiring issue.
 - Detection overlay default was ambiguous — resolved: overlays are optional and off by default unless enabled by the **Overlay flag** or injected prototype composition.
 - Detection overlay persistence between samples was ambiguous — resolved: persist last-sampled detections as overlay on every frame until the next sample replaces them.

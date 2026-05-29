@@ -1,7 +1,7 @@
 ---
 id: source-recording
 title: Source recording
-status: approved
+status: done
 external_ref:
 ---
 
