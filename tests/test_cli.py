@@ -72,6 +72,13 @@ def test_parse_cli_options_accepts_orchestrator_delegation_agent() -> None:
     assert options.agent_name == "orchestrator-delegation"
 
 
+def test_parse_cli_options_accepts_visual_query_planning_agent() -> None:
+    options = parse_cli_options(["--agent", "visual-query-planning"])
+
+    assert options.command == "agent"
+    assert options.agent_name == "visual-query-planning"
+
+
 def test_parse_cli_options_accepts_detection_query_filters() -> None:
     options = parse_cli_options(
         [

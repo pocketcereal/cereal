@@ -21,6 +21,10 @@ tasks:
     cmds:
       - uv run cereal --agent orchestrator-delegation
 
+  visual-query-planning-smoke:
+    cmds:
+      - uv run cereal --agent visual-query-planning
+
   lint:
     cmds:
       - uv run ruff format --check

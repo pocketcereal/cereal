@@ -41,6 +41,10 @@ release is cut.
 - Orchestrator-to-`detection-lookup` delegation smoke path with seeded labels,
   trace assertions, `uv run cereal --agent orchestrator-delegation`, and
   `task orchestrator-delegation-smoke`.
+- Agent-facing Evidence and fake Visual validation data tools plus
+  visual-query planning smoke coverage with generated local video evidence,
+  exact trace-order assertions, `uv run cereal --agent visual-query-planning`,
+  and `task visual-query-planning-smoke`.
 - Required `orchestrator.model` settings loaded from the Cereal YAML
   configuration file.
 - Draft `agent-harness-integration` PRD and issue path for mapping Agent

@@ -66,6 +66,14 @@ Implemented:
 - Explicit local delegation smoke path through
   `uv run cereal --agent orchestrator-delegation` and
   `task orchestrator-delegation-smoke`.
+- Agent-facing Evidence and fake Visual validation data tools for visual-query
+  planning smoke.
+- Deterministic visual-query planning smoke coverage with exact trace-order
+  assertions for `detection-lookup.find_detection_events`,
+  `retrieve_evidence_window`, and `validate_visual_claim`.
+- Explicit local visual-query planning smoke path through
+  `uv run cereal --agent visual-query-planning` and
+  `task visual-query-planning-smoke`.
 - Detection store label listing with event counts.
 - SQLite Detection store access serialized for LangGraph worker-thread tool
   calls.

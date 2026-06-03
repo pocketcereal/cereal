@@ -66,12 +66,13 @@ def compose_deepagents_agent(
     )
 
 
-def compose_orchestrator_agent(
+def compose_orchestrator_agent(  # noqa: PLR0913 - composition receives explicit deps.
     orchestrator: AgentDefinition,
     registry: AgentRegistry,
     settings: OrchestratorSettings,
     tool_catalog: AgentToolCatalog,
     *,
+    tools: Sequence[Any] = (),
     create_agent: Callable[..., object] = create_deep_agent,
 ) -> object:
     """Compose the Cereal Orchestrator agent with registered subagents."""
@@ -87,6 +88,7 @@ def compose_orchestrator_agent(
         orchestrator,
         model=settings.model,
         subagents=subagents,
+        tools=tools,
         create_agent=create_agent,
     )
 

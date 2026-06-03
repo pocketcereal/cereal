@@ -18,6 +18,7 @@ from cereal.agents.deepagents_runtime import (
 )
 from cereal.agents.detection_lookup_smoke import run_detection_lookup_tool_smoke
 from cereal.agents.orchestrator_delegation_smoke import run_orchestrator_delegation_smoke
+from cereal.agents.visual_query_planning_smoke import run_visual_query_planning_smoke
 from cereal.detection.query import DetectionQueryOptions, run_detection_query
 from cereal.detection.runtime import run_detection_preview
 from cereal.settings import DEFAULT_CONFIG_PATH, Settings, load_settings
@@ -109,7 +110,12 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
     parser.add_argument(
         "--agent",
         dest="agent_name",
-        choices=("orchestrator", "detection-lookup", "orchestrator-delegation"),
+        choices=(
+            "orchestrator",
+            "detection-lookup",
+            "orchestrator-delegation",
+            "visual-query-planning",
+        ),
         help="run a narrow local Agent smoke path",
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -168,6 +174,11 @@ def run_agent_smoke(settings: Settings, agent_name: str) -> int:
 
     if agent_name == "orchestrator-delegation":
         result = run_orchestrator_delegation_smoke(settings.orchestrator)
+        sys.stdout.write(f"{result.output}\n")
+        return 0
+
+    if agent_name == "visual-query-planning":
+        result = run_visual_query_planning_smoke(settings.orchestrator)
         sys.stdout.write(f"{result.output}\n")
         return 0
 

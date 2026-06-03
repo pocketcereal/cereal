@@ -144,6 +144,10 @@ _Avoid_: Detection store, source of truth, vector database
 A transient, in-memory group of nearby full **Frames** around one **Detection event** or one **Object track**.
 _Avoid_: Clip, segment, frame group, evidence packet
 
+**Evidence window reference**:
+A serializable run-local handle plus summary metadata for one **Evidence window**, used between agent-facing tools during one invocation.
+_Avoid_: Durable Evidence packet ID, stable evidence history, raw Evidence window
+
 **Evidence packet**:
 A future durable and shareable unit of visual evidence with metadata stable enough for agents, memory, and audit trails.
 _Avoid_: Evidence window, raw frames, recording artifact
@@ -196,6 +200,10 @@ _Avoid_: Tool registry, plugin registry, import list
 A resolver that maps tool names declared by an **Agent definition** to Python callables exposed at the **Agent harness** boundary.
 _Avoid_: Hidden Orchestrator wiring, prompt-only capability, persistence owner
 
+**Agent-facing data tool**:
+A tool exposed at the **Agent harness** boundary that returns compact, serializable, JSON-like data for agent planning or validation.
+_Avoid_: Raw domain object, frame array, byte payload, prose-only answer, Data agent
+
 **Agent runtime binding**:
 A Cereal-owned runtime value that pairs an **Agent definition** with resolved tools and other injected dependencies before a specific **Agent harness** renders it.
 _Avoid_: Deep Agents config, bound agent definition, agent instance, harness binding
@@ -224,6 +232,10 @@ _Avoid_: Vehicle-color validator, example-specific subagent, Agent building bloc
 A small serializable agent-facing result for Detection lookup tools, derived from Detection events without exposing raw domain objects directly to the agent harness.
 _Avoid_: Raw DetectionEvent, prose-only tool output, Object track count
 
+**Detection event reference**:
+A serializable agent-facing reference to one **Detection event** using stable event context such as source name, frame index, time fields, class name, and **Evidence URI**.
+_Avoid_: SQLite row ID, raw DetectionEvent, Object track ID
+
 **Detection label summary**:
 A serializable label plus Detection event count returned by label discovery tools for a source or time scope.
 _Avoid_: Label ontology, semantic synonym, Object track count
@@ -247,6 +259,10 @@ _Avoid_: Visual validation, prompt template, detector label
 **Visual validator**:
 A replaceable port that evaluates one **Visual claim** against one **Evidence window**.
 _Avoid_: VLM client, model, agent
+
+**Visual-query planning smoke**:
+A narrow **Agent harness** smoke that verifies the **Orchestrator agent** chooses the expected capability sequence for a structured visual-analysis task.
+_Avoid_: Answer-quality benchmark, broad video QA, model evaluation, natural-language parser test
 
 **Frame writer**:
 The runtime component that writes **Frames** into a **Recording artifact**.
@@ -319,6 +335,10 @@ _Avoid_: File path, artifact path, storage key
 - The first **Evidence window** retrieval slice is centered on one **Detection event**, uses a frame-radius window, and requires the center **Frame**.
 - Neighbor **Frames** in an **Evidence window** are best-effort so start-of-file and end-of-file windows can still be useful.
 - An **Evidence window** is not an **Evidence packet**; windows are temporary retrieval results, while packets are future durable evidence units.
+- An **Evidence window reference** is run-local and not stable across invocations; durable external evidence identity belongs to future **Evidence packets**.
+- Agent-facing tools may pass **Evidence window references** during one run, but should not store them as canonical evidence history.
+- The first **Evidence window reference** includes only summary metadata needed for planning and trace readability: evidence-window handle, source name, center frame index, frame count, target class name, target confidence, target **Bounding box**, and **Evidence URI**.
+- An **Evidence window reference** must not include raw **Frames**, pixels, per-frame image data, or a durable evidence ID.
 - An **Evidence packet** may be created from one or more **Detection events** plus recovered **Frames**, but it does not become the source of truth for those detections or frames.
 - An **Evidence packet** preserves its original evidence basis; later **Visual validations** may agree or disagree with that basis without mutating the underlying **Detection events**.
 - An **Evidence target** preserves the **Detection event** context inside an **Evidence window** without cropping the recovered **Frames**.
@@ -333,6 +353,17 @@ _Avoid_: File path, artifact path, storage key
 - A **Visual validator** is a port so provider-specific VLM behavior stays outside the **Analysis**, **Detection**, and **Evidence** domains.
 - First-slice **Visual validation** validates exactly one **Visual claim** against exactly one **Evidence window**.
 - Broader questions are answered by **Analysis** composition over many focused **Visual validations**, not by broadening the **Visual validator** contract.
+- A **Visual-query planning smoke** measures planner shape and boundary correctness, not final answer quality or model quality.
+- The first **Visual-query planning smoke** should verify the **Orchestrator agent** selects Detection lookup, Evidence retrieval, and fake **Visual validation** in sequence for a structured prompt.
+- The first **Visual-query planning smoke** should assert exact capability order, not merely capability presence.
+- The first **Visual-query planning smoke** final output is a completion sanity check, such as `supported: car`; **Agent run trace** assertions remain authoritative.
+- In the first **Visual-query planning smoke**, Detection lookup remains `detection-lookup` **Specialized subagent** delegation; Evidence retrieval and fake **Visual validation** are direct **Orchestrator agent** tool calls as staged exposure.
+- The first **Visual-query planning smoke** should use a focused `find_detection_events` lookup for `car` in `smoke_fixture`; it should not retest detector-label discovery.
+- The first **Visual-query planning smoke** validates one selected candidate Detection event only; multiple-candidate ranking and partial validation behavior wait for later slices.
+- The first **Visual-query planning smoke** should exercise real `cereal.evidence` retrieval against deterministic local recoverable frame evidence while keeping **Visual validation** fake.
+- The deterministic Evidence fixture for the first **Visual-query planning smoke** should be a tiny local video, not extracted still frames, so Evidence retrieval exercises frame-window behavior.
+- The tiny local video fixture for the first **Visual-query planning smoke** should be generated at test/smoke runtime in a temp directory, not committed as a binary test asset.
+- The generated video fixture should contain only three to five simple deterministic frames with distinct colors or labels for retrieval debugging; it does not need visual object semantics.
 - An **Orchestrator agent** may query the **Detection store**, select **Evidence windows**, request **Visual validations**, create or choose **Agent definitions**, delegate to **Specialized subagents**, and compose an answer.
 - The **Orchestrator agent** should choose an analysis strategy from available tools and **Agent definitions** rather than following a hardcoded workflow for each user question.
 - **Agent definitions** may be static or future runtime-created definitions, but they need explicit capabilities, context, and permission boundaries.
@@ -346,6 +377,15 @@ _Avoid_: File path, artifact path, storage key
 - **Specialized subagents** should be testable through their own composition boundaries instead of only through the **Orchestrator agent**.
 - **Specialized subagents** should be self-contained at the **Agent definition** level: instructions, declared tools, permissions, and expected usage live with the agent definition.
 - Tool implementations may live in shared Python modules, but they are attached to an agent by resolving tool names declared by that agent's **Agent definition**.
+- **Agent-facing data tools** return serializable data rather than raw **Frames**, **Evidence windows**, provider objects, bytes, or prose-only answers.
+- Do not introduce **Data agent** or **Data subagent** as a first-class Cereal term until repeated data-returning **Specialized subagents** reveal a stable category.
+- The first agent-facing Evidence data tool should be one focused `retrieve_evidence_window` capability; event selection remains **Orchestrator agent** planning behavior, not a separate tool.
+- `retrieve_evidence_window` should accept a serialized **Detection event reference** derived from Detection lookup output; Cereal should not expose SQLite row IDs as the first agent-facing event identity.
+- The first `retrieve_evidence_window` input field should be `detection_event_ref`; its run-local output handle field should be `evidence_window_ref`.
+- The first fake agent-facing **Visual validation** data tool validates only a structured **Visual claim** plus serialized evidence-window reference; it does not inspect pixels or simulate VLM quality.
+- The first fake agent-facing **Visual validation** data tool should return fixed `supported`; negative or uncertain validation outcomes wait for later validation-policy work.
+- The first fake **Visual validation** data tool should be named `validate_visual_claim` and use `claim`, `status`, `class_name`, and `evidence_window_ref` fields.
+- Agent-facing Evidence and fake **Visual validation** tools should compose lower-level `cereal.evidence` and `cereal.validation` ports directly for the planning smoke, not hide the sequence behind one broad `cereal.analysis` call.
 - An **Agent runtime binding** is the Cereal-owned place where declared tool names become actual tool objects for one runtime composition.
 - **Agent runtime bindings** should be created before rendering into a specific **Agent harness** so Cereal's modular agent shape is not defined by Deep Agents dictionaries.
 - An **Agent run trace** observes harness-visible actions and artifacts, not hidden model reasoning or chain-of-thought.
@@ -356,6 +396,7 @@ _Avoid_: File path, artifact path, storage key
 - First-slice **Agent trace events** may include agent names, subagent names, tool names, structured tool arguments, and JSON-like tool results.
 - First-slice **Agent trace events** should not store raw full prompts or full model messages by default.
 - Detection lookup tools should return **Detection lookup results**, not raw **Detection events**, so harness-facing output stays stable and serializable.
+- Agent-facing tools should pass **Detection event references** between capabilities instead of raw **Detection events** or private database row IDs.
 - Detection lookup tools receive dependencies such as a **Detection store** at construction time; they should not open databases or read **Settings** internally.
 - The first Detection lookup tools are `find_detection_events` and `list_detection_labels`, declared by `agents/detection-lookup.agent`.
 - `list_detection_labels` lets the **Detection lookup subagent** discover actual detector labels in a source/time scope; label similarity reasoning remains the agent's responsibility.
@@ -367,6 +408,7 @@ _Avoid_: File path, artifact path, storage key
 - Orchestrator-to-`detection-lookup` delegation is proven through a seeded smoke path and `task orchestrator-delegation-smoke`; deterministic assertions use a fake harness with an **Agent run trace**.
 - Long-term agent-facing capabilities should be registered with the **Specialized subagents** that own their focused work, not permanently accumulated as broad **Orchestrator agent** tools.
 - A small planning slice may expose a new capability directly to the **Orchestrator agent** before its owning **Specialized subagent** exists, but that is staged exposure rather than final ownership.
+- Direct **Orchestrator agent** access to Evidence retrieval and fake **Visual validation** tools in the first **Visual-query planning smoke** is staged exposure, not a decision that those capabilities permanently belong to the **Orchestrator agent**.
 - The **Orchestrator agent** may depend on a **Specialized subagent** only after that subagent's definition, harness mapping, and tool boundary can be tested in isolation.
 - The next **Agent harness** proof after Orchestrator-to-`detection-lookup` delegation is a visual-query planning smoke; Evidence window retrieval and Visual validation remain out of the delegation slice.
 - **Orchestrator delegation** means the **Orchestrator agent** invokes a harness-visible **Specialized subagent** or capability. Direct Python routing inside an Orchestrator smoke function does not count as delegation.
@@ -390,6 +432,9 @@ _Avoid_: File path, artifact path, storage key
 - `orchestrator.model` is required in the **Configuration file** once **Orchestrator settings** exist; Cereal should not hide a default model in code.
 - `uv run cereal --agent orchestrator` is the first narrow local smoke path for the **Orchestrator agent**; arbitrary agent names and prompts are out of scope for that slice.
 - `uv run cereal --agent detection-lookup` is the first narrow local smoke path for direct **Detection lookup subagent** tool use.
+- `task visual-query-planning-smoke` should be the next explicit smoke path after `task agent-smoke`, `task detection-lookup-smoke`, and `task orchestrator-delegation-smoke`.
+- Smoke tasks should remain boundary-specific so a failure identifies whether harness liveness, isolated tool use, delegation, or visual-query planning broke.
+- Automated **Visual-query planning smoke** assertions should use an injected fake harness/runtime; real Deep Agents/Ollama smoke remains a manual runtime-wiring confidence check.
 - The first **Orchestrator agent** smoke prompt is developer verification code, not **Agent definition** content or **Orchestrator settings**.
 - Deep Agents/LangGraph may execute tool calls in worker threads, so injected store implementations must be safe at that boundary.
 - LangGraph may be used as the lower-level graph/orchestration layer under or beside Deep Agents, but it is not itself a Cereal domain concept.
