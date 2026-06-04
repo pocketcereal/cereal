@@ -14,6 +14,11 @@ release is cut.
   class, and detector track ID, keeps untracked events as singleton tracks,
   orders events and tracks deterministically, and selects a highest-confidence
   representative event.
+- Conservative untracked-detection linking in `build_object_tracks`: same-source,
+  same-class events without a detector track ID are joined across adjacent
+  sampled frames by bounding-box IoU, with a configurable frame gap (default 1)
+  and IoU threshold (default 0.3), starting a new track for tied or near-tied
+  candidate matches.
 
 - `MASTER_DOMAIN_LIST.md` first-pass domain extraction for the planned VLM
   video-question architecture.

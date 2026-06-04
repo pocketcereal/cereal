@@ -6,17 +6,20 @@ from cereal.detection.tracks import build_object_tracks
 from cereal.detection.types import BoundingBox, DetectionEvent
 
 SEPARATE_TRACK_COUNT = 2
+LINKED_EVENT_COUNT = 2
+NEAR_TIE_TRACK_COUNT = 3
 FIRST_EVENT_MEDIA_MS = 1000
 LAST_EVENT_MEDIA_MS = 4000
 
 
-def _event(
+def _event(  # noqa: PLR0913 - test factory exposes each Detection event field explicitly.
     *,
     frame_index: int,
     track_id: str | None,
     confidence: float = 0.5,
     source_name: str = "camera",
     class_name: str = "car",
+    bounding_box: BoundingBox | None = None,
 ) -> DetectionEvent:
     """Build a Detection event with media-time ordering tied to the frame index."""
     return DetectionEvent(
@@ -31,9 +34,14 @@ def _event(
         class_id=2,
         class_name=class_name,
         confidence=confidence,
-        bounding_box=BoundingBox(x1=1.0, y1=2.0, x2=30.0, y2=40.0),
+        bounding_box=bounding_box or BoundingBox(x1=1.0, y1=2.0, x2=30.0, y2=40.0),
         track_id=track_id,
     )
+
+
+def _box(x1: float) -> BoundingBox:
+    """Return a 10x10 box at a given x offset for overlap-control in tests."""
+    return BoundingBox(x1=x1, y1=0.0, x2=x1 + 10.0, y2=10.0)
 
 
 def test_events_with_same_track_id_group_into_one_track() -> None:
@@ -101,9 +109,86 @@ def test_representative_ties_break_to_earliest_frame() -> None:
     assert track.representative is earlier
 
 
-def test_untracked_events_become_separate_singleton_tracks() -> None:
-    first = _event(frame_index=1, track_id=None)
-    second = _event(frame_index=2, track_id=None)
+def test_one_moving_untracked_object_links_into_one_track() -> None:
+    first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    second = _event(frame_index=2, track_id=None, bounding_box=_box(1.0))
+    third = _event(frame_index=3, track_id=None, bounding_box=_box(2.0))
+
+    tracks = build_object_tracks([first, second, third])
+
+    assert len(tracks) == 1
+    assert tracks[0].events == (first, second, third)
+    assert tracks[0].track_id is None
+
+
+def test_two_separated_moving_objects_form_two_tracks() -> None:
+    first_a = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    second_a = _event(frame_index=2, track_id=None, bounding_box=_box(1.0))
+    first_b = _event(frame_index=1, track_id=None, bounding_box=_box(500.0))
+    second_b = _event(frame_index=2, track_id=None, bounding_box=_box(501.0))
+
+    tracks = build_object_tracks([first_a, second_a, first_b, second_b])
+
+    assert len(tracks) == SEPARATE_TRACK_COUNT
+    assert all(len(track.events) == LINKED_EVENT_COUNT for track in tracks)
+
+
+def test_low_overlap_untracked_events_do_not_link() -> None:
+    first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    second = _event(
+        frame_index=2,
+        track_id=None,
+        bounding_box=BoundingBox(x1=8.0, y1=0.0, x2=18.0, y2=10.0),
+    )
+
+    tracks = build_object_tracks([first, second])
+
+    assert len(tracks) == SEPARATE_TRACK_COUNT
+
+
+def test_one_missed_sampled_frame_still_links_within_gap() -> None:
+    first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    other_class = _event(
+        frame_index=2, track_id=None, class_name="person", bounding_box=_box(900.0),
+    )
+    later = _event(frame_index=3, track_id=None, bounding_box=_box(1.0))
+
+    tracks = build_object_tracks([first, other_class, later])
+
+    car_tracks = [track for track in tracks if track.class_name == "car"]
+    assert len(car_tracks) == 1
+    assert len(car_tracks[0].events) == LINKED_EVENT_COUNT
+
+
+def test_two_missed_sampled_frames_split_into_two_tracks() -> None:
+    first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    other_2 = _event(
+        frame_index=2, track_id=None, class_name="person", bounding_box=_box(900.0),
+    )
+    other_3 = _event(
+        frame_index=3, track_id=None, class_name="person", bounding_box=_box(901.0),
+    )
+    later = _event(frame_index=4, track_id=None, bounding_box=_box(1.0))
+
+    tracks = build_object_tracks([first, other_2, other_3, later])
+
+    car_tracks = [track for track in tracks if track.class_name == "car"]
+    assert len(car_tracks) == SEPARATE_TRACK_COUNT
+
+
+def test_near_tied_candidates_start_a_new_track() -> None:
+    left = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    right = _event(frame_index=1, track_id=None, bounding_box=_box(10.0))
+    middle = _event(frame_index=2, track_id=None, bounding_box=_box(5.0))
+
+    tracks = build_object_tracks([left, right, middle])
+
+    assert len(tracks) == NEAR_TIE_TRACK_COUNT
+
+
+def test_non_overlapping_untracked_events_stay_separate_tracks() -> None:
+    first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
+    second = _event(frame_index=2, track_id=None, bounding_box=_box(500.0))
 
     tracks = build_object_tracks([first, second])
 

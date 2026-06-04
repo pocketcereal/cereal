@@ -10,9 +10,13 @@ from cereal.detection.types import FrameTime
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from cereal.detection.types import DetectionEvent
+    from cereal.detection.types import BoundingBox, DetectionEvent
 
 __all__ = ["ObjectTrack", "build_object_tracks"]
+
+DEFAULT_FRAME_GAP = 1
+DEFAULT_IOU_THRESHOLD = 0.3
+LINK_MARGIN = 0.05
 
 
 @dataclass(frozen=True)
@@ -69,13 +73,97 @@ def _make_track(
     )
 
 
-def build_object_tracks(events: Sequence[DetectionEvent]) -> list[ObjectTrack]:
-    """Group Detection events into Object tracks by source, class, and track id."""
+def _iou(box_a: BoundingBox, box_b: BoundingBox) -> float:
+    """Return the intersection-over-union of two pixel-space boxes."""
+    inter_x1 = max(box_a.x1, box_b.x1)
+    inter_y1 = max(box_a.y1, box_b.y1)
+    inter_x2 = min(box_a.x2, box_b.x2)
+    inter_y2 = min(box_a.y2, box_b.y2)
+    inter = max(0.0, inter_x2 - inter_x1) * max(0.0, inter_y2 - inter_y1)
+    if inter == 0.0:
+        return 0.0
+    area_a = (box_a.x2 - box_a.x1) * (box_a.y2 - box_a.y1)
+    area_b = (box_b.x2 - box_b.x1) * (box_b.y2 - box_b.y1)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _source_frame_ranks(events: Sequence[DetectionEvent]) -> dict[str, dict[int, int]]:
+    """Rank each source's sampled frame indices so gaps mean missed sampled frames."""
+    frames_by_source: dict[str, set[int]] = {}
+    for event in events:
+        frames_by_source.setdefault(event.source_name, set()).add(event.frame_index)
+    return {
+        source: {frame: rank for rank, frame in enumerate(sorted(frames))}
+        for source, frames in frames_by_source.items()
+    }
+
+
+def _best_open_track(
+    event: DetectionEvent,
+    open_tracks: list[list[DetectionEvent]],
+    rank: dict[int, int],
+    frame_gap: int,
+    iou_threshold: float,
+) -> list[DetectionEvent] | None:
+    """Pick the open track to extend, or None to start a new one."""
+    scored: list[tuple[float, list[DetectionEvent]]] = []
+    for track in open_tracks:
+        last = track[-1]
+        sampled_gap = rank[event.frame_index] - rank[last.frame_index]
+        if sampled_gap < 1 or sampled_gap > frame_gap + 1:
+            continue
+        score = _iou(event.bounding_box, last.bounding_box)
+        if score >= iou_threshold:
+            scored.append((score, track))
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    if len(scored) == 1:
+        return scored[0][1]
+    if scored[0][0] - scored[1][0] >= LINK_MARGIN:
+        return scored[0][1]
+    return None
+
+
+def _link_untracked(
+    untracked: Sequence[DetectionEvent],
+    ranks: dict[str, dict[int, int]],
+    frame_gap: int,
+    iou_threshold: float,
+) -> list[list[DetectionEvent]]:
+    """Link untracked events into candidate tracks by adjacency and box overlap."""
+    groups: dict[tuple[str, str], list[DetectionEvent]] = {}
+    for event in untracked:
+        groups.setdefault((event.source_name, event.class_name), []).append(event)
+
+    member_lists: list[list[DetectionEvent]] = []
+    for (source_name, _class_name), members in groups.items():
+        rank = ranks[source_name]
+        open_tracks: list[list[DetectionEvent]] = []
+        for event in sorted(members, key=_chronological_key):
+            best = _best_open_track(event, open_tracks, rank, frame_gap, iou_threshold)
+            if best is None:
+                new_track = [event]
+                open_tracks.append(new_track)
+                member_lists.append(new_track)
+            else:
+                best.append(event)
+    return member_lists
+
+
+def build_object_tracks(
+    events: Sequence[DetectionEvent],
+    *,
+    frame_gap: int = DEFAULT_FRAME_GAP,
+    iou_threshold: float = DEFAULT_IOU_THRESHOLD,
+) -> list[ObjectTrack]:
+    """Group Detection events into Object tracks by track id or overlap linking."""
     grouped: dict[tuple[str, str, str], list[DetectionEvent]] = {}
-    singletons: list[DetectionEvent] = []
+    untracked: list[DetectionEvent] = []
     for event in events:
         if event.track_id is None:
-            singletons.append(event)
+            untracked.append(event)
             continue
         key = (event.source_name, event.class_name, event.track_id)
         grouped.setdefault(key, []).append(event)
@@ -84,9 +172,10 @@ def build_object_tracks(events: Sequence[DetectionEvent]) -> list[ObjectTrack]:
         _make_track(source_name, class_name, track_id, members)
         for (source_name, class_name, track_id), members in grouped.items()
     ]
+    ranks = _source_frame_ranks(events)
     tracks.extend(
-        _make_track(event.source_name, event.class_name, None, [event])
-        for event in singletons
+        _make_track(members[0].source_name, members[0].class_name, None, members)
+        for members in _link_untracked(untracked, ranks, frame_gap, iou_threshold)
     )
     tracks.sort(key=_track_order_key)
     return tracks

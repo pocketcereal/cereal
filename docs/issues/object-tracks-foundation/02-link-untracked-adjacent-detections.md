@@ -1,7 +1,7 @@
 ---
 id: object-tracks-foundation-02
 title: Link untracked adjacent detections
-status: draft
+status: done
 parent: ./PRD.md
 depends_on: [object-tracks-foundation-01]
 external_ref:
@@ -17,19 +17,19 @@ linking likely same-object events across adjacent sampled **Frames**.
 
 ## Acceptance Criteria
 
-- [ ] Add a conservative same-source, same-class linking policy for untracked
+- [x] Add a conservative same-source, same-class linking policy for untracked
       **Detection events**.
-- [ ] Use a configurable frame-gap threshold with a default of one sampled
+- [x] Use a configurable frame-gap threshold with a default of one sampled
       frame gap.
-- [ ] Use plain bounding-box IoU as the first matching signal.
-- [ ] Use a configurable IoU threshold with a conservative default around
+- [x] Use plain bounding-box IoU as the first matching signal.
+- [x] Use a configurable IoU threshold with a conservative default around
       `0.3`.
-- [ ] Keep matching deterministic when multiple candidates are possible.
-- [ ] Link to the highest-IoU candidate only when it is uniquely best by a
+- [x] Keep matching deterministic when multiple candidates are possible.
+- [x] Link to the highest-IoU candidate only when it is uniquely best by a
       small margin.
-- [ ] Start a new track for tied or near-tied candidate matches.
-- [ ] Do not merge events across different sources or classes.
-- [ ] Add tests for one moving object, two separated objects, low-overlap
+- [x] Start a new track for tied or near-tied candidate matches.
+- [x] Do not merge events across different sources or classes.
+- [x] Add tests for one moving object, two separated objects, low-overlap
       objects, and frame-gap boundaries.
 
 ## Notes
@@ -42,3 +42,7 @@ linking likely same-object events across adjacent sampled **Frames**.
 - Center-distance matching, velocity prediction, and appearance matching are
   out of scope for the first heuristic linker.
 - This is not visual re-identification and should not call a VLM.
+- `frame_index` is the raw decoded-frame counter, so the frame gap is measured
+  over each source's sampled-frame timeline (sorted unique frame indices among
+  events), not by raw `frame_index` difference. A gap therefore means a missed
+  sampled detection, which is what the threshold is meant to tolerate.
