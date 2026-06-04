@@ -30,8 +30,9 @@ direction.
 5. Temporal Object Tracking
    Connects detections across frames so repeated sightings can become one
    observed object or event.
-   First detection slice stores an optional track identifier but defers
-   Object track creation and count semantics to a later pass.
+   Current next foundation: derive **Object tracks** from stored **Detection
+   events** so count-style questions can count physical objects rather than
+   one-frame observations.
 
 6. Confidence and Evidence Scoring
    Tracks detector confidence and later validation confidence so answers can be

@@ -1,7 +1,7 @@
 ---
 id: agent-harness-integration
 title: Agent harness integration
-status: approved
+status: done
 external_ref:
 ---
 
@@ -78,7 +78,7 @@ Implemented:
 - SQLite Detection store access serialized for LangGraph worker-thread tool
   calls.
 
-Not implemented:
+Deferred beyond this initiative:
 
 - User-question planning.
 

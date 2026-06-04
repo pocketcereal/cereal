@@ -105,11 +105,11 @@ Pixel-space `x1`, `y1`, `x2`, `y2` coordinates in a decoded **Frame**.
 _Avoid_: Normalized box, region, crop
 
 **Object track**:
-A sequence of **Detection events** believed to describe the same physical object across adjacent **Frames** from one **Source**.
+A query-local candidate group of **Detection events** believed to describe the same physical object across adjacent **Frames** from one **Source**.
 _Avoid_: Object, detection group, tracklet
 
 **Detection store**:
-The canonical structured store for **Detection events** and **Object tracks**.
+The canonical structured store for **Detection events**.
 _Avoid_: Vector store, semantic cache, analytics database
 
 **Detection event query**:
@@ -196,6 +196,14 @@ _Avoid_: Agent building block, Lego agent, agent bundle, prompt only
 A catalog of available **Agent definitions** that the **Orchestrator agent** can inspect or select from.
 _Avoid_: Tool registry, plugin registry, import list
 
+**Self-authored agent**:
+An **Agent definition** the **Orchestrator agent** creates, registers, and persists at runtime for later reuse, rather than one shipped in the repo.
+_Avoid_: Dynamic prompt, throwaway subagent, hardcoded specialist
+
+**Authored tool**:
+A tool whose implementation the **Orchestrator agent** generates at runtime, validated and persisted before it enters the **Agent tool catalog**.
+_Avoid_: Hardcoded tool, repo-only callable, prompt-only capability
+
 **Agent tool catalog**:
 A resolver that maps tool names declared by an **Agent definition** to Python callables exposed at the **Agent harness** boundary.
 _Avoid_: Hidden Orchestrator wiring, prompt-only capability, persistence owner
@@ -203,6 +211,18 @@ _Avoid_: Hidden Orchestrator wiring, prompt-only capability, persistence owner
 **Agent-facing data tool**:
 A tool exposed at the **Agent harness** boundary that returns compact, serializable, JSON-like data for agent planning or validation.
 _Avoid_: Raw domain object, frame array, byte payload, prose-only answer, Data agent
+
+**Agent-facing capability**:
+A focused tool, **Specialized subagent**, or staged **Orchestrator agent** tool exposure that the **Orchestrator agent** can choose while planning how to answer a task.
+_Avoid_: Lego block, Agent building block, hardcoded workflow step
+
+**Agent-facing capability contract**:
+The shared descriptive shape for an **Agent-facing capability**: purpose, structured inputs, serializable outputs, uncertainty fields, evidence references when available, and the follow-up work it enables.
+_Avoid_: Tool framework, broad plugin system, hardcoded workflow
+
+**Capability facet**:
+One named part of the **Agent-facing capability contract** that describes how a capability can be chosen and composed, such as purpose, inputs, outputs, uncertainty, evidence, follow-up capabilities, or boundaries.
+_Avoid_: Implementation detail, arbitrary metadata, hidden prompt convention
 
 **Agent runtime binding**:
 A Cereal-owned runtime value that pairs an **Agent definition** with resolved tools and other injected dependencies before a specific **Agent harness** renders it.
@@ -324,8 +344,13 @@ _Avoid_: File path, artifact path, storage key
 - A **Detection event** belongs to exactly one **Frame** from exactly one **Source**.
 - A first-slice **Detection event** includes source name, **Observed time** or **Media time**, frame index, frame width, frame height, **Evidence URI**, model name, class ID, class name, confidence, a **Bounding box**, and an optional track ID.
 - An **Object track** contains one or more **Detection events** from one **Source**.
+- An **Object track** is an inspectable candidate for a physical object, not a final answer or a permanent identity claim.
 - Count-style questions about physical objects should count **Object tracks**, not raw **Detection events**.
-- The **Detection store** is the source of truth for **Detection events** and **Object tracks**.
+- The **Detection store** is the source of truth for **Detection events**; the first **Object track** foundation derives tracks from queried events before adding a persisted track schema.
+- First-slice **Object track** identity is query-local and derived from grouped **Detection events**; it is not a durable SQLite row or cross-run object identity.
+- First-slice explicit detector tracking groups **Detection events** by `source_name`, `class_name`, and detector `track_id`; cross-class identity reconciliation is deferred to a later explicit policy.
+- First-slice **Object track** representative event is the highest-confidence **Detection event** in the track, with deterministic tie-breakers by earliest frame and time.
+- **Object track** lookup should return candidate groups and uncertainty metadata for agent planning, not hide grouping judgment behind one final count.
 - The first **Detection store** should be a domain port with a SQLite **Store backend**.
 - The first implementation focus is the **Detection store** fed by real YOLO-backed **Detection events**.
 - The first **Detection store** slice runs detection over the first configured **Source** before adding the future background processing runtime.
@@ -378,6 +403,13 @@ _Avoid_: File path, artifact path, storage key
 - **Specialized subagents** should be self-contained at the **Agent definition** level: instructions, declared tools, permissions, and expected usage live with the agent definition.
 - Tool implementations may live in shared Python modules, but they are attached to an agent by resolving tool names declared by that agent's **Agent definition**.
 - **Agent-facing data tools** return serializable data rather than raw **Frames**, **Evidence windows**, provider objects, bytes, or prose-only answers.
+- **Agent-facing capabilities** should be narrow enough for the **Orchestrator agent** to choose and compose; they should not bake one fixed question-answering workflow into Python.
+- First-slice **Agent-facing capability contracts** should stay lightweight and descriptive: name, purpose, structured input, serializable output, uncertainty signals, evidence references when available, and suggested follow-up capability types.
+- An **Agent-facing capability contract** helps the **Orchestrator agent** compare and compose capabilities; it should not become a broad plugin framework before repeated capabilities reveal stable needs.
+- Keep the **Agent-facing capability contract** documented for one more slice; promote it to typed repo data only after multiple implemented capabilities prove the metadata shape.
+- **Capability facets** are documented in `docs/agents/capability-contract.md`; code and tests should use those facets as a shared vocabulary before Cereal promotes them into typed repo data.
+- The central **Agent-facing capability contract** remains canonical, while each `.agent` definition should include a short **Capability facet** summary for capabilities it owns.
+- `follow_up_capabilities` are capability hints, not workflow instructions; the **Orchestrator agent** still chooses the next planning step.
 - Do not introduce **Data agent** or **Data subagent** as a first-class Cereal term until repeated data-returning **Specialized subagents** reveal a stable category.
 - The first agent-facing Evidence data tool should be one focused `retrieve_evidence_window` capability; event selection remains **Orchestrator agent** planning behavior, not a separate tool.
 - `retrieve_evidence_window` should accept a serialized **Detection event reference** derived from Detection lookup output; Cereal should not expose SQLite row IDs as the first agent-facing event identity.
@@ -399,6 +431,8 @@ _Avoid_: File path, artifact path, storage key
 - Agent-facing tools should pass **Detection event references** between capabilities instead of raw **Detection events** or private database row IDs.
 - Detection lookup tools receive dependencies such as a **Detection store** at construction time; they should not open databases or read **Settings** internally.
 - The first Detection lookup tools are `find_detection_events` and `list_detection_labels`, declared by `agents/detection-lookup.agent`.
+- First-slice **Object track** lookup should attach to the existing `detection-lookup` **Specialized subagent** because it is still structured Detection store interpretation.
+- Split a future `object-track-lookup` **Specialized subagent** only if track lookup grows distinct policy ownership, uncertainty reporting, or validation handoff behavior that no longer fits Detection lookup.
 - `list_detection_labels` lets the **Detection lookup subagent** discover actual detector labels in a source/time scope; label similarity reasoning remains the agent's responsibility.
 - `list_detection_labels` returns **Detection label summaries** so the agent can see both available labels and their Detection event counts.
 - Label counting for Detection lookup belongs behind the **Detection store** port, not inside the agent tool.
@@ -410,12 +444,18 @@ _Avoid_: File path, artifact path, storage key
 - A small planning slice may expose a new capability directly to the **Orchestrator agent** before its owning **Specialized subagent** exists, but that is staged exposure rather than final ownership.
 - Direct **Orchestrator agent** access to Evidence retrieval and fake **Visual validation** tools in the first **Visual-query planning smoke** is staged exposure, not a decision that those capabilities permanently belong to the **Orchestrator agent**.
 - The **Orchestrator agent** may depend on a **Specialized subagent** only after that subagent's definition, harness mapping, and tool boundary can be tested in isolation.
-- The next **Agent harness** proof after Orchestrator-to-`detection-lookup` delegation is a visual-query planning smoke; Evidence window retrieval and Visual validation remain out of the delegation slice.
+- The completed **Agent harness** proof after Orchestrator-to-`detection-lookup` delegation is the first **Visual-query planning smoke**, where Evidence retrieval and fake **Visual validation** are staged direct **Orchestrator agent** tools.
 - **Orchestrator delegation** means the **Orchestrator agent** invokes a harness-visible **Specialized subagent** or capability. Direct Python routing inside an Orchestrator smoke function does not count as delegation.
 - The **Agent harness** path binds and tests `detection-lookup` tools before broad visual-query planning.
 - The first **Agent harness** composition API should be pure functions: a generic Deep Agents composition helper plus a named **Orchestrator agent** wrapper, not a broad runtime class.
 - The first **Orchestrator agent** wrapper registers all available `specialized-subagent` definitions from the provided **Agent registry**.
 - Cereal's long-term agent architecture should provide harness and tool mapping so the **Orchestrator agent** can choose, create, and execute work, including future code-writing capabilities, without hardcoded question-solving strategies.
+- The product target is a continuous monitor: detection runs in the background over active **Sources** so **Detection events** accumulate in the **Detection store** before any question is asked. Single-**Source** single-run execution is prototype scaffolding, not the product shape.
+- The north-star **Orchestrator agent** can both select existing **Agent definitions** and create **Self-authored agents** and **Authored tools**, registering and persisting them as canonical `.agent` directories for reuse across runs.
+- The target **Agent registry** is durable and writable, not only the first static in-memory catalog; the **Orchestrator agent** extends it with **Self-authored agents**.
+- **Authored tools** require a trust boundary, validation before reuse, and dynamic loading into the **Agent tool catalog**; this is deferred until hand-built capabilities prove the capability template.
+- Emergent correlations (such as a person consistently appearing with a detected truck) are an emergent result of the **Orchestrator agent** composing structured **Detection event** and **Object track** queries, not a dedicated correlation or mining subsystem.
+- Query understanding and structured answer composition are **Orchestrator agent** responsibilities, not standalone parser or reporting modules; the first user-facing ask-surface is a one-shot CLI query against the **Detection store**.
 - A **Harness adapter** maps Cereal-owned **Agent definitions** to a concrete **Agent harness** without making Detection, Evidence, Analysis, or Validation import that harness.
 - The first **Harness adapter** slice maps inert **Agent definition** configuration only and defers runtime tool binding.
 - Deferred **Agent definition** fields should be exposed structurally by a **Harness adapter** result rather than silently dropped or treated as runtime behavior.
@@ -432,7 +472,7 @@ _Avoid_: File path, artifact path, storage key
 - `orchestrator.model` is required in the **Configuration file** once **Orchestrator settings** exist; Cereal should not hide a default model in code.
 - `uv run cereal --agent orchestrator` is the first narrow local smoke path for the **Orchestrator agent**; arbitrary agent names and prompts are out of scope for that slice.
 - `uv run cereal --agent detection-lookup` is the first narrow local smoke path for direct **Detection lookup subagent** tool use.
-- `task visual-query-planning-smoke` should be the next explicit smoke path after `task agent-smoke`, `task detection-lookup-smoke`, and `task orchestrator-delegation-smoke`.
+- `task visual-query-planning-smoke` is the explicit smoke path after `task agent-smoke`, `task detection-lookup-smoke`, and `task orchestrator-delegation-smoke`.
 - Smoke tasks should remain boundary-specific so a failure identifies whether harness liveness, isolated tool use, delegation, or visual-query planning broke.
 - Automated **Visual-query planning smoke** assertions should use an injected fake harness/runtime; real Deep Agents/Ollama smoke remains a manual runtime-wiring confidence check.
 - The first **Orchestrator agent** smoke prompt is developer verification code, not **Agent definition** content or **Orchestrator settings**.
@@ -540,7 +580,7 @@ Agent definition
 - `cereal.media` still owns **Source adapter**, **Preview window**, and **Recording artifact** mechanics.
 - `uv run cereal` runs the first-source detection path; `task dev` runs it with **Detection overlays** enabled.
 - `cereal detections` / `task detections` inspect stored **Detection events**.
-- There is no concrete VLM provider adapter, no prompt template, no user-facing question parser, no **Object track** creation, and no persisted **Visual validation** result yet.
+- There is no concrete VLM provider adapter, no prompt template, no user-facing question parser, no implemented **Object track** creation, and no persisted **Visual validation** result yet.
 
 ## Example dialogue
 
@@ -573,11 +613,24 @@ Agent definition
 - Timestamp ownership was ambiguous between media time and wall-clock time — resolved: store file **Source** timing as **Media time** and capture-device timing as **Observed time** rather than overloading one timestamp field.
 - "stream of object detection" was ambiguous between the video input and derived model observations — resolved: use **Source** for the media input and **Detection event** for one model observation in one **Frame**.
 - "object" was ambiguous between a one-frame model observation and a physical thing over time — resolved: use **Detection event** for the observation and **Object track** for the inferred physical object over adjacent **Frames**.
-- Tracking scope was ambiguous for the first detection slice — resolved: first persist **Detection events** with optional track IDs, then handle **Object track** creation and count semantics in a later pass.
+- Tracking scope was ambiguous for the first detection slice — resolved: first persist **Detection events** with optional track IDs; the current **Object tracks foundation** pass derives **Object tracks** and count semantics from stored events before adding persisted track identity.
+- **Object track** persistence scope was ambiguous — resolved: first derive **Object tracks** at query time from stored **Detection events**; do not add an `object_tracks` SQLite table or durable track IDs until grouping policy stabilizes.
+- Explicit detector `track_id` scope was ambiguous — resolved: treat `track_id` as a strong grouping signal only within the same **Source** and detector class for the first **Object track** slice; do not merge across flickering detector classes yet.
+- **Object track** representative evidence was ambiguous — resolved: choose the highest-confidence **Detection event** first, with earliest frame and time as deterministic tie-breakers, so Evidence retrieval starts from the clearest detector-backed candidate.
+- **Object track** purpose was drifting toward implementation mechanics — resolved: treat track lookup as one **Agent-facing capability** that returns inspectable object candidates and uncertainty signals for the **Orchestrator agent** to compose with Evidence retrieval and **Visual validation**.
+- **Agent-facing capability** shape was ambiguous — resolved: define a lightweight **Agent-facing capability contract** before adding more agent-facing tools, so Detection lookup, Object track lookup, Evidence retrieval, and **Visual validation** expose comparable planning surfaces without becoming one hardcoded workflow.
+- **Agent-facing capability contract** implementation timing was ambiguous — resolved: document the contract first and use it to guide the next Object track capability; add typed contract values only after repeated capabilities prove the shape.
+- **Object track** agent topology was ambiguous — resolved: attach first-slice track lookup to the existing `detection-lookup` **Specialized subagent** and split only when track-specific policy or handoff behavior becomes distinct enough to justify its own subagent.
+- Capability communication was ambiguous — resolved: use `docs/agents/capability-contract.md` as the vocabulary document for **Capability facets** such as purpose, inputs, outputs, uncertainty, evidence, follow-up capabilities, and boundaries.
+- Follow-up guidance was ambiguous — resolved: capabilities may return `follow_up_capabilities` hints, but those hints are affordances for the **Orchestrator agent**, not a hardcoded workflow.
+- Capability documentation placement was ambiguous — resolved: keep the central contract in `docs/agents/capability-contract.md` and add short owned-capability facet summaries to each `.agent` definition.
 - Vector storage was ambiguous as either the primary detection history or a retrieval aid — resolved: the **Detection store** owns canonical structured detection history, while a **Semantic index** is optional and non-canonical.
 - "storage engine" was considered for persistence abstraction — resolved: use domain stores as ports and **Store backends** for concrete persistence implementations; defer factories/builders until more than one backend exists.
 - "main agent", "deep agent", "supervisor agent", "orchestrator", and "reporter" were ambiguous between product roles and library concepts — resolved: use **Orchestrator agent** for the Cereal domain role that plans an analysis strategy and answers user questions.
 - Agent creation scope is intentionally staged — resolved: first use predefined **Validation roles** for testable **Visual validations**, while leaving long-term room for the **Orchestrator agent** to create and manage its own **Specialized subagents**.
+- "The main deep agent will be in charge of building its own agents" was ambiguous between dynamic strategy composition and literal runtime authoring — resolved: the north-star goal is both; the **Orchestrator agent** chooses existing agents and authors new reusable **Self-authored agents** and **Authored tools** persisted to disk. The earlier "static in-memory registry" and "dynamic generation out of scope" framings are first-slice scope, superseded as the project goal by this north star.
+- Self-extending agent build order was ambiguous — resolved: build hand-made capabilities bottom-up (object tracks, real **Visual validator**, query composition, answer composition) before agent self-authoring, so the proven capability set becomes the template the **Orchestrator agent** authors against.
+- "Running in the background on the video in real time" was ambiguous against the single-**Source** prototype — resolved: the product is a continuous background monitor; the single-run path is scaffolding.
 - "Lego agent", "Agent building block", and "Agent bundle" were useful conversationally but overloaded — resolved: use **Agent definition** for the packaged `.agent`-style unit and align delegation language with Deep Agents **Subagents**.
 - "Specialist agent" and "expert agent" were ambiguous against Deep Agents terminology — resolved: use **Specialized subagent** for focused delegated agents.
 - "Vehicle color validator" was used only as an illustrative example — resolved: do not add example-specific subagents yet; use a generic **Detection lookup subagent** first.
