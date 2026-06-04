@@ -9,6 +9,12 @@ release is cut.
 
 ### Added
 
+- `cereal.detection.tracks` with a provider-free `ObjectTrack` value type and a
+  pure `build_object_tracks` builder that groups Detection events by source,
+  class, and detector track ID, keeps untracked events as singleton tracks,
+  orders events and tracks deterministically, and selects a highest-confidence
+  representative event.
+
 - `MASTER_DOMAIN_LIST.md` first-pass domain extraction for the planned VLM
   video-question architecture.
 - Draft `detection-store` PRD and child issue breakdown for sampled object
