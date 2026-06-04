@@ -1,7 +1,7 @@
 ---
 id: object-tracks-foundation-03
 title: Query Object track counts
-status: draft
+status: done
 parent: ./PRD.md
 depends_on: [object-tracks-foundation-02]
 external_ref:
@@ -18,13 +18,13 @@ agent behavior.
 
 ## Acceptance Criteria
 
-- [ ] Compose the existing SQLite **Detection store** query with the **Object
+- [x] Compose the existing SQLite **Detection store** query with the **Object
       track** builder.
-- [ ] Return track summaries with class name, track count, event count, and
+- [x] Return track summaries with class name, track count, event count, and
       frame range metadata.
-- [ ] Keep Detection label event counts separate from **Object track** counts.
-- [ ] Add a CLI or task path for local inspection of **Object track** summaries.
-- [ ] Add store-backed tests with repeated events that produce fewer tracks
+- [x] Keep Detection label event counts separate from **Object track** counts.
+- [x] Add a CLI or task path for local inspection of **Object track** summaries.
+- [x] Add store-backed tests with repeated events that produce fewer tracks
       than raw events.
 
 ## Notes

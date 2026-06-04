@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
     from cereal.detection.types import BoundingBox, DetectionEvent
 
-__all__ = ["ObjectTrack", "build_object_tracks"]
+__all__ = [
+    "ObjectTrack",
+    "ObjectTrackSummary",
+    "build_object_tracks",
+    "summarize_object_tracks",
+]
 
 DEFAULT_FRAME_GAP = 1
 DEFAULT_IOU_THRESHOLD = 0.3
@@ -38,6 +43,38 @@ class ObjectTrack:
     def time_range(self) -> tuple[FrameTime, FrameTime]:
         """Return the frame time of the first and last event in the track."""
         return (_frame_time(self.events[0]), _frame_time(self.events[-1]))
+
+
+@dataclass(frozen=True)
+class ObjectTrackSummary:
+    """Per-class Object track counts kept distinct from raw event counts."""
+
+    class_name: str
+    track_count: int
+    event_count: int
+    frame_range: tuple[int, int]
+
+
+def summarize_object_tracks(tracks: Sequence[ObjectTrack]) -> list[ObjectTrackSummary]:
+    """Aggregate Object tracks per class into track and event counts."""
+    by_class: dict[str, list[ObjectTrack]] = {}
+    for track in tracks:
+        by_class.setdefault(track.class_name, []).append(track)
+
+    summaries = [
+        ObjectTrackSummary(
+            class_name=class_name,
+            track_count=len(class_tracks),
+            event_count=sum(len(track.events) for track in class_tracks),
+            frame_range=(
+                min(track.frame_range[0] for track in class_tracks),
+                max(track.frame_range[1] for track in class_tracks),
+            ),
+        )
+        for class_name, class_tracks in by_class.items()
+    ]
+    summaries.sort(key=lambda summary: (-summary.track_count, summary.class_name))
+    return summaries
 
 
 def _chronological_key(event: DetectionEvent) -> tuple[int, int, float]:

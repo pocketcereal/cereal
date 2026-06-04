@@ -19,7 +19,12 @@ from cereal.agents.deepagents_runtime import (
 from cereal.agents.detection_lookup_smoke import run_detection_lookup_tool_smoke
 from cereal.agents.orchestrator_delegation_smoke import run_orchestrator_delegation_smoke
 from cereal.agents.visual_query_planning_smoke import run_visual_query_planning_smoke
-from cereal.detection.query import DetectionQueryOptions, run_detection_query
+from cereal.detection.query import (
+    DEFAULT_DETECTION_QUERY_LIMIT,
+    DetectionQueryOptions,
+    run_detection_query,
+    run_object_track_query,
+)
 from cereal.detection.runtime import run_detection_preview
 from cereal.settings import DEFAULT_CONFIG_PATH, Settings, load_settings
 
@@ -69,6 +74,7 @@ def main(
     *,
     preview: Callable[..., None] = run_detection_preview,
     query: Callable[[Settings, DetectionQueryOptions], int] = run_detection_query,
+    track_query: Callable[[Settings, DetectionQueryOptions], int] = run_object_track_query,
     agent_smoke: Callable[[Settings, str], int] | None = None,
 ) -> int:
     """Run the Cereal process entrypoint."""
@@ -79,6 +85,11 @@ def main(
             msg = "detection query options are required"
             raise RuntimeError(msg)
         return query(settings, options.detection_query)
+    if options.command == "tracks":
+        if options.detection_query is None:
+            msg = "track query options are required"
+            raise RuntimeError(msg)
+        return track_query(settings, options.detection_query)
     if options.command == "agent":
         if options.agent_name is None:
             msg = "agent name is required"
@@ -132,13 +143,25 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
     detections_parser.add_argument("--media-start-ms", dest="media_time_start", type=int)
     detections_parser.add_argument("--media-end-ms", dest="media_time_end", type=int)
     detections_parser.add_argument("--limit", type=int, default=20)
+    tracks_parser = subparsers.add_parser(
+        "tracks",
+        help="count Object tracks per class from stored Detection events",
+    )
+    tracks_parser.add_argument("--config", dest="tracks_config_path", type=Path)
+    tracks_parser.add_argument("--source", dest="source_name")
+    tracks_parser.add_argument("--class", "--class-name", dest="class_name")
+    tracks_parser.add_argument("--min-confidence", dest="min_confidence", type=float)
+    tracks_parser.add_argument("--observed-start", type=_parse_datetime)
+    tracks_parser.add_argument("--observed-end", type=_parse_datetime)
+    tracks_parser.add_argument("--media-start-ms", dest="media_time_start", type=int)
+    tracks_parser.add_argument("--media-end-ms", dest="media_time_end", type=int)
     parser.set_defaults(preview_enabled=True)
     namespace = parser.parse_args(args)
     detection_query = None
     command = namespace.command or "run"
     if namespace.agent_name is not None:
         command = "agent"
-    if namespace.command == "detections":
+    if namespace.command in ("detections", "tracks"):
         detection_query = DetectionQueryOptions(
             source_name=namespace.source_name,
             class_name=namespace.class_name,
@@ -147,11 +170,13 @@ def parse_cli_options(args: Sequence[str] | None = None) -> CliOptions:
             media_time_start=namespace.media_time_start,
             media_time_end=namespace.media_time_end,
             min_confidence=namespace.min_confidence,
-            limit=namespace.limit,
+            limit=getattr(namespace, "limit", DEFAULT_DETECTION_QUERY_LIMIT),
         )
 
     return CliOptions(
-        config_path=getattr(namespace, "detections_config_path", None) or namespace.config_path,
+        config_path=getattr(namespace, "detections_config_path", None)
+        or getattr(namespace, "tracks_config_path", None)
+        or namespace.config_path,
         preview_enabled=namespace.preview_enabled,
         overlays_enabled=namespace.overlays_enabled,
         command=command,

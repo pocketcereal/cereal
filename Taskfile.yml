@@ -9,6 +9,10 @@ tasks:
     cmds:
       - uv run cereal detections --limit 20
 
+  tracks:
+    cmds:
+      - uv run cereal tracks
+
   agent-smoke:
     cmds:
       - uv run cereal --agent orchestrator

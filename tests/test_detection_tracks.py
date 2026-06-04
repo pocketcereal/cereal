@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from cereal.detection.tracks import build_object_tracks
+from cereal.detection.tracks import build_object_tracks, summarize_object_tracks
 from cereal.detection.types import BoundingBox, DetectionEvent
 
 SEPARATE_TRACK_COUNT = 2
 LINKED_EVENT_COUNT = 2
 NEAR_TIE_TRACK_COUNT = 3
+CAR_EVENT_COUNT = 5
 FIRST_EVENT_MEDIA_MS = 1000
 LAST_EVENT_MEDIA_MS = 4000
 
@@ -107,6 +108,56 @@ def test_representative_ties_break_to_earliest_frame() -> None:
     track = build_object_tracks([later, earlier])[0]
 
     assert track.representative is earlier
+
+
+def test_summarize_counts_tracks_and_events_per_class() -> None:
+    tracks = build_object_tracks(
+        [
+            _event(frame_index=1, track_id="1"),
+            _event(frame_index=2, track_id="1"),
+            _event(frame_index=3, track_id="1"),
+            _event(frame_index=1, track_id="2"),
+            _event(frame_index=2, track_id="2"),
+        ],
+    )
+
+    summaries = summarize_object_tracks(tracks)
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.class_name == "car"
+    assert summary.track_count == SEPARATE_TRACK_COUNT
+    assert summary.event_count == CAR_EVENT_COUNT
+
+
+def test_summarize_spans_frame_range_across_class_tracks() -> None:
+    tracks = build_object_tracks(
+        [
+            _event(frame_index=2, track_id="1"),
+            _event(frame_index=9, track_id="1"),
+            _event(frame_index=4, track_id="2"),
+        ],
+    )
+
+    summary = summarize_object_tracks(tracks)[0]
+
+    assert summary.frame_range == (2, 9)
+
+
+def test_summarize_keeps_classes_separate_and_ordered_by_track_count() -> None:
+    tracks = build_object_tracks(
+        [
+            _event(frame_index=1, track_id="1", class_name="car"),
+            _event(frame_index=1, track_id="2", class_name="car"),
+            _event(frame_index=1, track_id="3", class_name="person"),
+        ],
+    )
+
+    summaries = summarize_object_tracks(tracks)
+
+    assert [summary.class_name for summary in summaries] == ["car", "person"]
+    assert summaries[0].track_count == SEPARATE_TRACK_COUNT
+    assert summaries[1].track_count == 1
 
 
 def test_one_moving_untracked_object_links_into_one_track() -> None:

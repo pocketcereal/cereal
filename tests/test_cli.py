@@ -109,6 +109,16 @@ def test_parse_cli_options_accepts_detection_query_filters() -> None:
     )
 
 
+def test_parse_cli_options_accepts_tracks_command_filters() -> None:
+    options = parse_cli_options(["tracks", "--source", "camera", "--class", "car"])
+
+    assert options.command == "tracks"
+    assert options.detection_query == DetectionQueryOptions(
+        source_name="camera",
+        class_name="car",
+    )
+
+
 def test_parse_cli_options_accepts_detection_query_config_after_subcommand(
     tmp_path: Path,
 ) -> None:
@@ -164,6 +174,28 @@ def test_main_runs_detection_query_command(tmp_path: Path) -> None:
     )
     assert queried == [
         DetectionQueryOptions(class_name="person"),
+    ]
+
+
+def test_main_runs_object_track_query_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    write_config(config_path, storage=tmp_path / "storage")
+    queried: list[DetectionQueryOptions] = []
+
+    def track_query(_settings: Settings, options: DetectionQueryOptions) -> int:
+        queried.append(options)
+        return 0
+
+    assert (
+        main(
+            ["--config", str(config_path), "tracks", "--class-name", "car"],
+            preview=noop_preview,
+            track_query=track_query,
+        )
+        == 0
+    )
+    assert queried == [
+        DetectionQueryOptions(class_name="car"),
     ]
 
 

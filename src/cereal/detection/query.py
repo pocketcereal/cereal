@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from cereal.detection.store import DetectionEventQuery, SqliteDetectionStore
+from cereal.detection.tracks import build_object_tracks, summarize_object_tracks
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from cereal.detection.store import DetectionStore
+    from cereal.detection.tracks import ObjectTrackSummary
     from cereal.detection.types import DetectionEvent
     from cereal.settings import Settings
 
@@ -20,7 +22,9 @@ __all__ = [
     "DEFAULT_DETECTION_QUERY_LIMIT",
     "DetectionQueryOptions",
     "render_detection_events_tsv",
+    "render_object_track_summary_tsv",
     "run_detection_query",
+    "run_object_track_query",
     "to_detection_event_query",
 ]
 
@@ -28,6 +32,7 @@ DEFAULT_DETECTION_QUERY_LIMIT = 20
 DETECTION_QUERY_TSV_HEADER = (
     "source\tclass\tconfidence\tobserved_time\tmedia_time_ms\tframe_index\tbox_xyxy\tevidence_uri"
 )
+OBJECT_TRACK_SUMMARY_TSV_HEADER = "class\ttrack_count\tevent_count\tframe_start\tframe_end"
 
 
 @dataclass(frozen=True)
@@ -71,6 +76,28 @@ def run_detection_query(
     return 0
 
 
+def run_object_track_query(
+    settings: Settings,
+    options: DetectionQueryOptions,
+    *,
+    database_path: Path | None = None,
+    store_factory: Callable[[Path], DetectionStore] = SqliteDetectionStore,
+    write: Callable[[str], object] = print,
+) -> int:
+    """Print per-class Object track counts derived from the configured store."""
+    from cereal.detection.runtime import default_detection_database_path  # noqa: PLC0415
+
+    store = store_factory(database_path or default_detection_database_path(settings))
+    try:
+        events = store.query(replace(to_detection_event_query(options), limit=None))
+    finally:
+        store.close()
+
+    summaries = summarize_object_tracks(build_object_tracks(events))
+    write(render_object_track_summary_tsv(summaries))
+    return 0
+
+
 def to_detection_event_query(options: DetectionQueryOptions) -> DetectionEventQuery:
     """Map CLI query options to the Detection store query contract."""
     return DetectionEventQuery(
@@ -101,6 +128,25 @@ def render_detection_events_tsv(events: Iterable[DetectionEvent]) -> str:
                     str(event.frame_index),
                     f"{box.x1:.1f},{box.y1:.1f},{box.x2:.1f},{box.y2:.1f}",
                     event.evidence_uri,
+                ],
+            ),
+        )
+    return "\n".join(lines)
+
+
+def render_object_track_summary_tsv(summaries: Iterable[ObjectTrackSummary]) -> str:
+    """Render per-class Object track counts as tab-separated rows."""
+    lines = [OBJECT_TRACK_SUMMARY_TSV_HEADER]
+    for summary in summaries:
+        start, end = summary.frame_range
+        lines.append(
+            "\t".join(
+                [
+                    summary.class_name,
+                    str(summary.track_count),
+                    str(summary.event_count),
+                    str(start),
+                    str(end),
                 ],
             ),
         )

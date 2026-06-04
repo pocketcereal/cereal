@@ -19,6 +19,10 @@ release is cut.
   sampled frames by bounding-box IoU, with a configurable frame gap (default 1)
   and IoU threshold (default 0.3), starting a new track for tied or near-tied
   candidate matches.
+- `summarize_object_tracks` plus a `cereal tracks` command and `task tracks` that
+  report per-class Object track counts, event counts, and frame ranges from the
+  SQLite Detection store, keeping Object track counts distinct from Detection
+  label event counts.
 
 - `MASTER_DOMAIN_LIST.md` first-pass domain extraction for the planned VLM
   video-question architecture.
