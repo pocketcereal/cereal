@@ -23,6 +23,12 @@ release is cut.
   report per-class Object track counts, event counts, and frame ranges from the
   SQLite Detection store, keeping Object track counts distinct from Detection
   label event counts.
+- Agent-facing `lookup_object_tracks` tool on the `detection-lookup` Specialized
+  subagent that returns serializable Object track candidates with grouping
+  basis, confidence range, representative Detection event references, and
+  `follow_up_capabilities` hints, plus a deterministic Object track planning
+  smoke (`uv run cereal --agent object-track-planning`,
+  `task object-track-planning-smoke`).
 
 - `MASTER_DOMAIN_LIST.md` first-pass domain extraction for the planned VLM
   video-question architecture.

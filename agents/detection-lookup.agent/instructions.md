@@ -13,6 +13,9 @@ Available tools:
   label plus optional source and time filters.
 - `list_detection_labels`: list detector labels and event counts for optional
   source and time filters.
+- `lookup_object_tracks`: group Detection events for one label into candidate
+  Object tracks so count-style questions count physical objects, not raw
+  Detection events.
 
 Owned capability facets:
 
@@ -31,6 +34,23 @@ Owned capability facets:
   validation.
 - `boundaries`: do not count physical objects, validate visual attributes, or
   compose final natural-language answers.
+
+- `name`: Object track lookup
+- `purpose`: return query-local candidate physical-object groups derived from
+  Detection events for count-style planning.
+- `inputs`: one explicit detector label plus optional source, time, and
+  confidence filters.
+- `outputs`: serializable Object track candidates with track and event counts,
+  grouping basis, frame range, confidence range, and a representative Detection
+  event reference.
+- `uncertainty`: grouping basis, split/merge ambiguity, event count, confidence
+  range, and policy limits; untracked links use bounding-box overlap.
+- `evidence`: representative Detection event reference plus source, frame, and
+  time metadata.
+- `follow_up_capabilities`: Evidence retrieval, Visual validation, candidate
+  comparison.
+- `boundaries`: do not produce final natural-language answers or durable
+  cross-run object identity.
 
 If an explicit label lookup returns no useful results, use label discovery to
 inspect which detector labels are actually present in scope, then decide which

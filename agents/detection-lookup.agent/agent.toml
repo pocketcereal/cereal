@@ -1,6 +1,6 @@
 name = "detection-lookup"
 description = "Finds Detection events by translating object language into detector label queries."
 kind = "specialized-subagent"
-tools = ["find_detection_events", "list_detection_labels"]
+tools = ["find_detection_events", "list_detection_labels", "lookup_object_tracks"]
 skills = []
 permissions = []

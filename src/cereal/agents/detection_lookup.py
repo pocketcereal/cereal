@@ -8,29 +8,47 @@ from typing import TYPE_CHECKING
 
 from cereal.agents.tools import AgentToolCatalog
 from cereal.detection.store import DetectionEventQuery, DetectionLabelQuery
+from cereal.detection.tracks import build_object_tracks
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from cereal.detection.store import DetectionStore
+    from cereal.detection.tracks import ObjectTrack
     from cereal.detection.types import DetectionEvent
 
 __all__ = [
     "DEFAULT_DETECTION_EVENT_LOOKUP_LIMIT",
     "DEFAULT_DETECTION_LABEL_LOOKUP_LIMIT",
+    "DEFAULT_OBJECT_TRACK_LOOKUP_LIMIT",
     "DetectionLabelListResult",
     "DetectionLabelSummary",
     "DetectionLookupEvent",
     "DetectionLookupResult",
+    "ObjectTrackCandidate",
+    "ObjectTrackLookupResult",
     "make_detection_lookup_tool_catalog",
     "make_find_detection_events_tool",
     "make_list_detection_labels_tool",
+    "make_lookup_object_tracks_tool",
 ]
 
 DEFAULT_DETECTION_EVENT_LOOKUP_LIMIT = 20
 DEFAULT_DETECTION_LABEL_LOOKUP_LIMIT = 50
+DEFAULT_OBJECT_TRACK_LOOKUP_LIMIT = 20
 FIND_DETECTION_EVENTS_TOOL = "find_detection_events"
 LIST_DETECTION_LABELS_TOOL = "list_detection_labels"
+LOOKUP_OBJECT_TRACKS_TOOL = "lookup_object_tracks"
+OBJECT_TRACK_FOLLOW_UP_CAPABILITIES = (
+    "retrieve_evidence_window",
+    "validate_visual_claim",
+    "compare_candidates",
+)
+OBJECT_TRACK_LOOKUP_UNCERTAINTY = (
+    "Object tracks are query-local candidates. Untracked detections are linked by "
+    "bounding-box overlap across adjacent sampled frames and may split or merge in "
+    "crowded scenes; counts are not durable cross-run identities."
+)
 
 
 @dataclass(frozen=True)
@@ -121,6 +139,67 @@ class DetectionLabelListResult:
         return {"labels": [label.to_dict() for label in self.labels]}
 
 
+@dataclass(frozen=True)
+class ObjectTrackCandidate:
+    """Serializable Object track candidate for agent planning."""
+
+    track_id: str | None
+    grouping_basis: str
+    event_count: int
+    frame_range: tuple[int, int]
+    confidence_range: tuple[float, float]
+    representative: DetectionLookupEvent
+
+    @classmethod
+    def from_track(cls, track: ObjectTrack) -> ObjectTrackCandidate:
+        """Summarize one Object track without exposing raw Detection events."""
+        confidences = [event.confidence for event in track.events]
+        return cls(
+            track_id=track.track_id,
+            grouping_basis=_grouping_basis(track),
+            event_count=len(track.events),
+            frame_range=track.frame_range,
+            confidence_range=(min(confidences), max(confidences)),
+            representative=DetectionLookupEvent.from_event(track.representative),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        """Render as JSON-like data for agent tool return values."""
+        return {
+            "track_id": self.track_id,
+            "grouping_basis": self.grouping_basis,
+            "event_count": self.event_count,
+            "frame_range": list(self.frame_range),
+            "confidence_range": list(self.confidence_range),
+            "representative": self.representative.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class ObjectTrackLookupResult:
+    """Serializable Object track lookup result for agent planning."""
+
+    label: str
+    track_count: int
+    event_count: int
+    grouping_bases: tuple[str, ...]
+    candidates: tuple[ObjectTrackCandidate, ...]
+    follow_up_capabilities: tuple[str, ...]
+    uncertainty: str
+
+    def to_dict(self) -> dict[str, object]:
+        """Render as JSON-like data for agent tool return values."""
+        return {
+            "label": self.label,
+            "track_count": self.track_count,
+            "event_count": self.event_count,
+            "grouping_bases": list(self.grouping_bases),
+            "candidates": [candidate.to_dict() for candidate in self.candidates],
+            "follow_up_capabilities": list(self.follow_up_capabilities),
+            "uncertainty": self.uncertainty,
+        }
+
+
 def make_find_detection_events_tool(
     store: DetectionStore,
 ) -> Callable[..., dict[str, object]]:
@@ -159,14 +238,74 @@ def make_find_detection_events_tool(
     return find_detection_events
 
 
+def make_lookup_object_tracks_tool(
+    store: DetectionStore,
+) -> Callable[..., dict[str, object]]:
+    """Create an Object track lookup tool bound to a Detection store."""
+
+    def lookup_object_tracks(  # noqa: PLR0913 - tool schema needs explicit args.
+        label: str,
+        source_name: str | None = None,
+        observed_start: str | None = None,
+        observed_end: str | None = None,
+        media_start_ms: int | None = None,
+        media_end_ms: int | None = None,
+        min_confidence: float | None = None,
+        limit: int = DEFAULT_OBJECT_TRACK_LOOKUP_LIMIT,
+    ) -> dict[str, object]:
+        """Group Detection events for one label into candidate Object tracks."""
+        normalized_label = _require_label(label)
+        events = store.query(
+            DetectionEventQuery(
+                source_name=source_name,
+                class_name=normalized_label,
+                observed_time_start=_parse_observed_time("observed_start", observed_start),
+                observed_time_end=_parse_observed_time("observed_end", observed_end),
+                media_time_start=media_start_ms,
+                media_time_end=media_end_ms,
+                min_confidence=min_confidence,
+                limit=None,
+            ),
+        )
+        tracks = build_object_tracks(events)
+        candidates = sorted(
+            (ObjectTrackCandidate.from_track(track) for track in tracks),
+            key=lambda candidate: (
+                -candidate.event_count,
+                candidate.frame_range[0],
+                candidate.track_id or "",
+            ),
+        )
+        return ObjectTrackLookupResult(
+            label=normalized_label,
+            track_count=len(tracks),
+            event_count=len(events),
+            grouping_bases=tuple(sorted({candidate.grouping_basis for candidate in candidates})),
+            candidates=tuple(candidates[:limit]),
+            follow_up_capabilities=OBJECT_TRACK_FOLLOW_UP_CAPABILITIES,
+            uncertainty=OBJECT_TRACK_LOOKUP_UNCERTAINTY,
+        ).to_dict()
+
+    return lookup_object_tracks
+
+
 def make_detection_lookup_tool_catalog(store: DetectionStore) -> AgentToolCatalog:
     """Create a tool catalog for the Detection lookup subagent."""
     return AgentToolCatalog(
         {
             FIND_DETECTION_EVENTS_TOOL: make_find_detection_events_tool(store),
             LIST_DETECTION_LABELS_TOOL: make_list_detection_labels_tool(store),
+            LOOKUP_OBJECT_TRACKS_TOOL: make_lookup_object_tracks_tool(store),
         },
     )
+
+
+def _grouping_basis(track: ObjectTrack) -> str:
+    if track.track_id is not None:
+        return "detector_track_id"
+    if len(track.events) > 1:
+        return "linked_overlap"
+    return "singleton"
 
 
 def make_list_detection_labels_tool(

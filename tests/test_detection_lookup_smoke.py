@@ -78,5 +78,6 @@ def test_run_detection_lookup_tool_smoke_uses_seeded_store_with_agent_tool_call(
     assert [tool.__name__ for tool in created["tools"]] == [
         "find_detection_events",
         "list_detection_labels",
+        "lookup_object_tracks",
     ]
     assert created["subagents"] == []

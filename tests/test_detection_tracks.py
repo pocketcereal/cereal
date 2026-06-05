@@ -200,7 +200,10 @@ def test_low_overlap_untracked_events_do_not_link() -> None:
 def test_one_missed_sampled_frame_still_links_within_gap() -> None:
     first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
     other_class = _event(
-        frame_index=2, track_id=None, class_name="person", bounding_box=_box(900.0),
+        frame_index=2,
+        track_id=None,
+        class_name="person",
+        bounding_box=_box(900.0),
     )
     later = _event(frame_index=3, track_id=None, bounding_box=_box(1.0))
 
@@ -214,10 +217,16 @@ def test_one_missed_sampled_frame_still_links_within_gap() -> None:
 def test_two_missed_sampled_frames_split_into_two_tracks() -> None:
     first = _event(frame_index=1, track_id=None, bounding_box=_box(0.0))
     other_2 = _event(
-        frame_index=2, track_id=None, class_name="person", bounding_box=_box(900.0),
+        frame_index=2,
+        track_id=None,
+        class_name="person",
+        bounding_box=_box(900.0),
     )
     other_3 = _event(
-        frame_index=3, track_id=None, class_name="person", bounding_box=_box(901.0),
+        frame_index=3,
+        track_id=None,
+        class_name="person",
+        bounding_box=_box(901.0),
     )
     later = _event(frame_index=4, track_id=None, bounding_box=_box(1.0))
 

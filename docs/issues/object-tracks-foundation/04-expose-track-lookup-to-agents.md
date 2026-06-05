@@ -1,7 +1,7 @@
 ---
 id: object-tracks-foundation-04
 title: Expose Object track lookup to agents
-status: draft
+status: done
 parent: ./PRD.md
 depends_on: [object-tracks-foundation-03]
 external_ref:
@@ -18,22 +18,22 @@ objects instead of raw Detection event counts.
 
 ## Acceptance Criteria
 
-- [ ] Add an agent-facing track lookup data tool that returns serializable
+- [x] Add an agent-facing track lookup data tool that returns serializable
       **Object track** summaries.
-- [ ] Include grouping basis and uncertainty metadata so the **Orchestrator
+- [x] Include grouping basis and uncertainty metadata so the **Orchestrator
       agent** can decide whether to validate, split, merge, or delegate.
-- [ ] Include `follow_up_capabilities` hints such as Evidence retrieval,
+- [x] Include `follow_up_capabilities` hints such as Evidence retrieval,
       Visual validation, or candidate comparison without forcing a fixed
       workflow.
-- [ ] Keep the tool attached to a focused **Specialized subagent** or clearly
+- [x] Keep the tool attached to a focused **Specialized subagent** or clearly
       document any staged **Orchestrator agent** exposure.
-- [ ] Add deterministic fake-harness coverage proving the agent can choose the
+- [x] Add deterministic fake-harness coverage proving the agent can choose the
       track lookup capability for count-style prompts.
-- [ ] Assert that track lookup returns candidates for agent planning, not a
+- [x] Assert that track lookup returns candidates for agent planning, not a
       final natural-language answer.
-- [ ] Keep live model smoke optional and secondary to deterministic trace
+- [x] Keep live model smoke optional and secondary to deterministic trace
       assertions.
-- [ ] Do not answer broad natural-language video questions in this slice.
+- [x] Do not answer broad natural-language video questions in this slice.
 
 ## Notes
 

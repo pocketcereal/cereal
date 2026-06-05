@@ -29,6 +29,10 @@ tasks:
     cmds:
       - uv run cereal --agent visual-query-planning
 
+  object-track-planning-smoke:
+    cmds:
+      - uv run cereal --agent object-track-planning
+
   lint:
     cmds:
       - uv run ruff format --check

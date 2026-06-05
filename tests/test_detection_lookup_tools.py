@@ -17,12 +17,16 @@ from cereal.agents.detection_lookup import (
     make_detection_lookup_tool_catalog,
     make_find_detection_events_tool,
     make_list_detection_labels_tool,
+    make_lookup_object_tracks_tool,
 )
 from cereal.detection.store import DetectionEventQuery, DetectionLabelCount, DetectionLabelQuery
 from cereal.detection.types import BoundingBox, DetectionEvent
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+TWO_TRACKS = 2
+THREE_EVENTS = 3
 
 
 def test_find_detection_events_tool_queries_store_by_label_and_filters() -> None:
@@ -118,6 +122,60 @@ def test_list_detection_labels_tool_returns_label_counts() -> None:
     )
 
 
+def test_lookup_object_tracks_tool_groups_events_into_candidate_tracks() -> None:
+    store = FakeDetectionStore(
+        events=[
+            make_event(class_name="car", frame_index=1, track_id="1"),
+            make_event(class_name="car", frame_index=2, track_id="1"),
+            make_event(class_name="car", frame_index=5, track_id="2"),
+        ],
+    )
+    lookup_object_tracks = make_lookup_object_tracks_tool(store)
+
+    result = lookup_object_tracks(label="car", source_name="camera")
+
+    assert store.event_queries == [
+        DetectionEventQuery(source_name="camera", class_name="car", limit=None),
+    ]
+    assert result["label"] == "car"
+    assert result["track_count"] == TWO_TRACKS
+    assert result["event_count"] == THREE_EVENTS
+    assert result["follow_up_capabilities"] == [
+        "retrieve_evidence_window",
+        "validate_visual_claim",
+        "compare_candidates",
+    ]
+    candidates = result["candidates"]
+    assert [candidate["event_count"] for candidate in candidates] == [2, 1]
+    assert candidates[0]["grouping_basis"] == "detector_track_id"
+    assert candidates[0]["frame_range"] == [1, 2]
+    assert candidates[0]["representative"]["class_name"] == "car"
+    assert candidates[0]["representative"]["source_name"] == "camera"
+
+
+def test_lookup_object_tracks_tool_reports_singleton_and_linked_basis() -> None:
+    store = FakeDetectionStore(
+        events=[
+            make_event(class_name="car", frame_index=9, track_id=None),
+        ],
+    )
+    lookup_object_tracks = make_lookup_object_tracks_tool(store)
+
+    result = lookup_object_tracks(label="car")
+
+    assert result["track_count"] == 1
+    assert result["candidates"][0]["grouping_basis"] == "singleton"
+    assert result["candidates"][0]["track_id"] is None
+    assert isinstance(result["uncertainty"], str)
+
+
+def test_lookup_object_tracks_tool_rejects_blank_label() -> None:
+    lookup_object_tracks = make_lookup_object_tracks_tool(FakeDetectionStore())
+
+    with pytest.raises(ValueError, match="label"):
+        lookup_object_tracks(label=" ")
+
+
 def test_detection_lookup_tool_catalog_resolves_declared_tools() -> None:
     catalog = make_detection_lookup_tool_catalog(FakeDetectionStore())
 
@@ -165,12 +223,17 @@ class FakeDetectionStore:
         pass
 
 
-def make_event(*, class_name: str) -> DetectionEvent:
+def make_event(
+    *,
+    class_name: str,
+    frame_index: int = 7,
+    track_id: str | None = None,
+) -> DetectionEvent:
     return DetectionEvent(
         source_name="camera",
         observed_time=datetime(2026, 5, 24, 12, 30, tzinfo=UTC),
         media_time_ms=None,
-        frame_index=7,
+        frame_index=frame_index,
         frame_width=1920,
         frame_height=1080,
         evidence_uri="file:///tmp/cereal.mp4",
@@ -179,5 +242,5 @@ def make_event(*, class_name: str) -> DetectionEvent:
         class_name=class_name,
         confidence=0.875,
         bounding_box=BoundingBox(x1=1.0, y1=2.0, x2=30.0, y2=40.0),
-        track_id=None,
+        track_id=track_id,
     )

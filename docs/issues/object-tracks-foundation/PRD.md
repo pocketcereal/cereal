@@ -1,7 +1,7 @@
 ---
 id: object-tracks-foundation
 title: Object tracks foundation
-status: approved
+status: done
 external_ref:
 ---
 

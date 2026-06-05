@@ -189,7 +189,11 @@ def test_repo_local_agent_definitions_load() -> None:
 
     assert orchestrator.kind == AgentDefinitionKind.ORCHESTRATOR
     assert detection_lookup.kind == AgentDefinitionKind.SPECIALIZED_SUBAGENT
-    assert detection_lookup.tools == ("find_detection_events", "list_detection_labels")
+    assert detection_lookup.tools == (
+        "find_detection_events",
+        "list_detection_labels",
+        "lookup_object_tracks",
+    )
 
 
 @dataclass(frozen=True)
