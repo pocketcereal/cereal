@@ -571,7 +571,7 @@ Agent definition
   -> Agent harness
 ```
 
-- `cereal.detection` owns **Detection event** creation, storage, YOLO adapter boundaries, detection querying, and preview overlays.
+- `cereal.detection` owns **Detection event** creation, storage, YOLO adapter boundaries, detection querying, query-local **Object track** building, and preview overlays.
 - `cereal.evidence` owns **Detection event** to **Evidence window** retrieval and local `file://` frame reading.
 - `cereal.analysis` owns composition across **Detection store**, **Evidence window** retrieval, and **Visual validator** calls.
 - `cereal.validation` owns provider-free **Visual claim**, **Visual validation**, and **Visual validator** contracts.
@@ -579,8 +579,8 @@ Agent definition
 - `cereal.agents` owns a pure **Harness adapter** that maps **Agent definitions** to Deep Agents subagent configuration without instantiating a live model.
 - `cereal.media` still owns **Source adapter**, **Preview window**, and **Recording artifact** mechanics.
 - `uv run cereal` runs the first-source detection path; `task dev` runs it with **Detection overlays** enabled.
-- `cereal detections` / `task detections` inspect stored **Detection events**.
-- There is no concrete VLM provider adapter, no prompt template, no user-facing question parser, no implemented **Object track** creation, and no persisted **Visual validation** result yet.
+- `cereal detections` / `task detections` inspect stored **Detection events**; `cereal tracks` / `task tracks` report query-local **Object track** counts.
+- First-slice **Object tracks** are derived at query time from stored **Detection events**; there is no concrete VLM provider adapter, no prompt template, no user-facing question parser, no persisted **Object track** schema, and no persisted **Visual validation** result yet.
 
 ## Example dialogue
 
