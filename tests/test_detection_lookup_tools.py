@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import FunctionType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -145,12 +145,13 @@ def test_lookup_object_tracks_tool_groups_events_into_candidate_tracks() -> None
         "validate_visual_claim",
         "compare_candidates",
     ]
-    candidates = result["candidates"]
+    candidates = cast("list[dict[str, object]]", result["candidates"])
     assert [candidate["event_count"] for candidate in candidates] == [2, 1]
     assert candidates[0]["grouping_basis"] == "detector_track_id"
     assert candidates[0]["frame_range"] == [1, 2]
-    assert candidates[0]["representative"]["class_name"] == "car"
-    assert candidates[0]["representative"]["source_name"] == "camera"
+    representative = cast("dict[str, object]", candidates[0]["representative"])
+    assert representative["class_name"] == "car"
+    assert representative["source_name"] == "camera"
 
 
 def test_lookup_object_tracks_tool_reports_singleton_and_linked_basis() -> None:
@@ -164,8 +165,9 @@ def test_lookup_object_tracks_tool_reports_singleton_and_linked_basis() -> None:
     result = lookup_object_tracks(label="car")
 
     assert result["track_count"] == 1
-    assert result["candidates"][0]["grouping_basis"] == "singleton"
-    assert result["candidates"][0]["track_id"] is None
+    candidates = cast("list[dict[str, object]]", result["candidates"])
+    assert candidates[0]["grouping_basis"] == "singleton"
+    assert candidates[0]["track_id"] is None
     assert isinstance(result["uncertainty"], str)
 
 

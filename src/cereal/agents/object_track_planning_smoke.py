@@ -64,13 +64,21 @@ def run_object_track_planning_smoke(
             seed_object_track_planning_store(store)
             orchestrator = load_agent_definition("agents/orchestrator.agent")
             detection_lookup = load_agent_definition("agents/detection-lookup.agent")
-            agent = compose_orchestrator_agent(
-                orchestrator,
-                AgentRegistry((detection_lookup,)),
-                settings,
-                make_detection_lookup_tool_catalog(store),
-                **({} if create_agent is None else {"create_agent": create_agent}),
-            )
+            if create_agent is None:
+                agent = compose_orchestrator_agent(
+                    orchestrator,
+                    AgentRegistry((detection_lookup,)),
+                    settings,
+                    make_detection_lookup_tool_catalog(store),
+                )
+            else:
+                agent = compose_orchestrator_agent(
+                    orchestrator,
+                    AgentRegistry((detection_lookup,)),
+                    settings,
+                    make_detection_lookup_tool_catalog(store),
+                    create_agent=create_agent,
+                )
             result = cast("InvokableAgent", agent).invoke(
                 {"messages": [{"role": "user", "content": OBJECT_TRACK_PLANNING_SMOKE_PROMPT}]},
             )
